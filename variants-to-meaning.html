@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Variants to meaning – annotating, filtering and interpreting genetic variants</title>
+<meta name="description" content="A self-contained practical: annotate variants with Ensembl VEP, judge them with population frequencies and prediction tools, filter them like a diagnostic lab, and look at the affected proteins in 3D.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2310263a'/%3E%3Cpath d='M7 8h18l-7 9v7l-4 2v-9z' fill='none' stroke='%233fb7a0' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='24' cy='23' r='3.4' fill='%23f28e2b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/genomics.css">
+</head>
+<body data-page="meaning" data-title="Variants to meaning">
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="index.html" title="All practicals">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#17344d"/><path d="M7 8h18l-7 9v7l-4 2v-9z" fill="none" stroke="#3fb7a0" stroke-width="2.2" stroke-linejoin="round"/><circle cx="24" cy="23" r="3.4" fill="#f28e2b"/></svg>
+      <div>
+        <div class="brand-title">Variants to meaning</div>
+        <div class="brand-sub">Genomic variant analysis · practical</div>
+      </div>
+    </a>
+    <div class="spacer"></div>
+    <div class="progress-wrap" title="Activities and questions completed (saved in this browser)"><span class="progress-label">0% done</span><div class="progress"><i></i></div></div>
+    <button class="btn" id="answersBtn" type="button"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg><span>My answers</span></button>
+    <button class="btn" id="helpBtn" type="button" title="How this page works"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.6-2.8 4M12 17.5h.01"/></svg><span>Help</span></button>
+  </header>
+
+  <div class="main">
+    <aside class="tut" aria-label="Tutorial">
+      <nav class="ch-nav" aria-label="Chapters"></nav>
+
+<!-- =====================================================================
+     0 · START HERE
+     ===================================================================== -->
+<section class="chapter" id="start" data-num="0" data-title="Start here" data-bench="variants">
+  <h1>Variants to meaning</h1>
+  <p class="lede">In <a href="reads-to-variants.html">Reads to variants</a> you turned NA12878's exome reads into <b>218 confident variant calls</b> in the <i>CYP2C</i> region of chromosome 10, and found that she carries one copy of <i>CYP2C19*2</i>. A VCF only says <i>where</i> she differs from the reference. Today you will find out <b>what</b> those differences are – which gene, what they do to the protein, how common they are, what prediction tools say – and learn how laboratories sift thousands of variants down to the few that matter.</p>
+  <div class="meta-row"><span class="pill time">About 2 hours</span><span class="pill">No software to install</span><span class="pill">Uses live data from Ensembl</span></div>
+
+  <div class="callout info">
+    <div class="co-t">The workbench</div>
+    <p><b>Variants</b> – your calls in a table; the <b>Annotate with VEP</b> button sends their positions and alleles to Ensembl's Variant Effect Predictor and fills in the rest. <b>IGV</b> – NA12878's reads, as before. <b>3D viewer</b> – crystal structures of the CYP2C enzymes.</p>
+    <p><button class="do showme" type="button" data-vx="saved">show me</button> buttons do a step for you – try it yourself first. Steps tick themselves when the page sees you do them; your answers are saved in this browser (<b>My answers</b> downloads them).</p>
+  </div>
+
+  <div class="name-field"><label for="studentName"><b>Your name</b> (optional – it goes on your downloaded answers):</label> <input id="studentName" type="text" data-student-name autocomplete="name"></div>
+
+  <h2>Where this fits</h2>
+  <div class="lp-flow"><span>reads</span><i>→</i><span>alignment</span><i>→</i><span>variant calls</span><i>→</i><b style="color:var(--accent-2)">annotate</b><i>→</i><b style="color:var(--accent-2)">filter &amp; prioritise</b><i>→</i><b style="color:var(--accent-2)">interpret</b></div>
+  <p>Two kinds of question are asked of variant lists, and they need opposite filters:</p>
+  <div class="two-col">
+    <div class="cardlet"><h4>Pharmacogenomics</h4><p>Which <b>known</b> variants does this person carry in genes that handle drugs? These are often <b>common</b> (CYP2C19*2 is on 1 in 7 European chromosomes). NA12878 is our example.</p></div>
+    <div class="cardlet"><h4>Rare-disease diagnosis</h4><p>Which <b>rare</b>, damaging variant explains this patient's condition? Common variants are thrown away first. Your coursework patient is this kind of case.</p></div>
+  </div>
+
+  <table class="table">
+    <tr><th>Chapter</th><th>What you will do</th><th>Time</th></tr>
+    <tr><td><button class="goto" data-goto="annotate" type="button">1 · Annotate</button></td><td>Run Ensembl VEP on your variants</td><td>15 min</td></tr>
+    <tr><td><button class="goto" data-goto="conseq" type="button">2 · Consequences</button></td><td>Consequence terms, impact, transcripts, HGVS names</td><td>20 min</td></tr>
+    <tr><td><button class="goto" data-goto="freq" type="button">3 · How common?</button></td><td>Population frequencies in gnomAD</td><td>15 min</td></tr>
+    <tr><td><button class="goto" data-goto="predict" type="button">4 · Predicting damage</button></td><td>SIFT, PolyPhen-2, CADD and SpliceAI</td><td>15 min</td></tr>
+    <tr><td><button class="goto" data-goto="splice" type="button">5 · A “silent” variant</button></td><td>How <i>CYP2C19*2</i> breaks the enzyme</td><td>15 min</td></tr>
+    <tr><td><button class="goto" data-goto="funnel" type="button">6 · Prioritising</button></td><td>Filter like a diagnostic lab; star alleles and drug response</td><td>20 min</td></tr>
+    <tr><td><button class="goto" data-goto="structure" type="button">7 · Proteins in 3D</button></td><td>Map the variants onto CYP2C19, CYP2C9 and CYP2C8</td><td>20 min</td></tr>
+    <tr><td><button class="goto" data-goto="report" type="button">8 · Reporting</button></td><td>How to present a variant; quiz</td><td>10 min</td></tr>
+  </table>
+  <p class="hint">Sections marked <span class="pill ext">Extension</span> are optional and not counted in your progress bar.</p>
+
+  <h2>By the end you should be able to…</h2>
+  <ul>
+    <li>annotate variants with VEP on the right genome build and read its output: consequence, impact, transcript, HGVS;</li>
+    <li>use population frequency (gnomAD) and prediction scores (SIFT, PolyPhen-2, CADD, SpliceAI) as evidence – and know their limits;</li>
+    <li>build a filtering strategy that fits the question, and explain what it can miss;</li>
+    <li>show a variant's position in a protein structure and reason about its effect;</li>
+    <li>present variants in a clear, complete table for a report.</li>
+  </ul>
+</section>
+
+<!-- =====================================================================
+     1 · ANNOTATE
+     ===================================================================== -->
+<section class="chapter" id="annotate" data-num="1" data-title="Annotate" data-bench="variants" hidden>
+  <h1>Annotating variants with VEP</h1>
+  <div class="meta-row"><span class="pill time">≈ 15 min</span><span class="pill">Workbench: Variants</span></div>
+  <p class="lede">Annotation looks up each variant against gene models and databases. The <b>Variant Effect Predictor (VEP)</b> from Ensembl/EMBL-EBI is the most widely used annotator; diagnostic labs run it on every exome. You can use it through its web page, as a command-line program, or – as here – through its public web service.</p>
+  <div class="callout warn">
+    <div class="co-t">Use the right genome build</div>
+    <p>Your variants have <b>hg19/GRCh37</b> coordinates, so they must be annotated against GRCh37. Ensembl's main site uses GRCh38; the GRCh37 version lives at <b>grch37.ensembl.org</b> (this page uses its VEP service). Annotating hg19 positions against GRCh38 gives wrong genes and nonsense consequences – without any error message.</p>
+  </div>
+  <div class="activity">
+    <div class="act-t">Activity 1.1 · Before annotation</div>
+    <ol class="steps">
+      <li data-task="an-look" data-auto="vx:loaded">Open the <b>Variants</b> tab. Your filtered calls are listed with position, alleles, QUAL, genotype and the reads for each allele – everything a VCF knows. (There are 219 rows for your 218 calls: at chr10:95,246,307 NA12878 carries two different alternative alleles, A&gt;G and A&gt;T, and each gets its own row.) <button class="do showme" type="button" data-bench="variants">show me</button></li>
+    </ol>
+  </div>
+  <div class="activity">
+    <div class="act-t">Activity 1.2 · Run VEP</div>
+    <ol class="steps">
+      <li data-task="an-run" data-check="vxAnnotated">Press <b>Annotate with VEP</b>. The page sends only chromosome, position and alleles – the same as pasting your VCF into the VEP web page – to Ensembl, in batches. It takes 10–60 seconds depending on how busy Ensembl is. If it fails or is slow, press <b>Use saved results</b> (the same annotations, saved when this practical was written). <button class="do showme" type="button" data-vx="live">run it for me</button></li>
+      <li data-task="an-cols">Look at the new columns: <b>Gene</b>, <b>Consequence</b>, <b>Impact</b>, <b>Protein</b> change, the variant's database identifier (<b>Known as</b>), its population frequency (<b>gnomAD AF</b>) and four prediction scores.</li>
+      <li data-task="an-sort" data-auto="vx:render">Click the <b>Impact</b> column heading to sort by it (click again to reverse).</li>
+    </ol>
+  </div>
+  <div class="q" data-q="an-genes">
+    <div class="q-text">Which genes do the variants fall in or near? (Use the Gene column; sort by it.)</div>
+    <div class="q-model"><p>The region, chr10:95–98 Mb, holds far more than the <i>CYP2C</i> cluster: about 30 genes appear. The most variants are in <i>MYOF</i> (28), <i>ALDH18A1</i> (17), <i>SORBS1</i> (16), <i>PDE6C</i> (14), <i>PDLIM1</i> and <i>BLNK</i> (13 each); the pharmacogenes have <i>CYP2C9</i> 9, <i>CYP2C18</i> 9, <i>CYP2C8</i> 8 and <i>CYP2C19</i> 6. Some are in non-coding RNA genes or pseudogenes (names like RP11-… or <i>CYP2C58P</i>), and 7 lie between genes.</p></div>
+  </div>
+  <div class="q" data-q="an-novel" data-accept="\b2\b||\btwo\b" data-hint="count the rows marked “novel” in the Known as column – or set the frequency filter to “not in databases”">
+    <div class="q-text">How many of the variants are <b>not</b> already in dbSNP (“novel”)?</div>
+    <div class="q-model"><p><b>Two</b> of 219 – both small insertions/deletions in repetitive sequence outside the exons, where calls are the least reliable. Everything else is already catalogued: most of anyone's variants are common and have been seen many times (and NA12878 herself has been sequenced by many projects). In a typical exome only a small percentage of variants are novel.</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     2 · CONSEQUENCES
+     ===================================================================== -->
+<section class="chapter" id="conseq" data-num="2" data-title="Consequences" data-bench="variants" hidden>
+  <h1>Consequences, transcripts and names</h1>
+  <div class="meta-row"><span class="pill time">≈ 20 min</span><span class="pill">Workbench: Variants</span></div>
+  <p class="lede">VEP describes what a variant does with standard <b>Sequence Ontology</b> terms, and groups them into four <b>impact</b> classes. The terms are defined per <b>transcript</b>: the same variant can be missense in one transcript and intronic in another.</p>
+  <table class="table small">
+    <tr><th>Impact</th><th>Typical consequences</th><th>Meaning</th></tr>
+    <tr><td><span class="imp HIGH">HIGH</span></td><td>stop gained, frameshift, splice donor/acceptor (±1–2 bp), start lost, stop lost</td><td>Likely to destroy the protein (loss of function)</td></tr>
+    <tr><td><span class="imp MODERATE">MODERATE</span></td><td>missense, in-frame insertion or deletion</td><td>Changes the protein sequence; effect uncertain</td></tr>
+    <tr><td><span class="imp LOW">LOW</span></td><td>synonymous, splice region (3–8 bp into the intron, 1–3 bp into the exon)</td><td>Probably harmless – but not always (chapter 5)</td></tr>
+    <tr><td><span class="imp MODIFIER">MODIFIER</span></td><td>intron, 5′/3′ UTR, upstream, downstream, intergenic</td><td>Outside the coding sequence; effect hard to predict</td></tr>
+  </table>
+  <div class="activity">
+    <div class="act-t">Activity 2.1 · What kinds of variant are there?</div>
+    <ol class="steps">
+      <li data-task="cq-filter" data-auto="vx:filter what=impact">Untick <b>LOW</b> and <b>MODIFIER</b> in the Impact filter to keep the variants that change the protein.</li>
+      <li data-task="cq-count">Read the count above the table, then tick the boxes again.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="cq-n" data-accept="\b12\b" data-hint="the number shown above the table with only HIGH and MODERATE ticked">
+    <div class="q-text">How many of the variants have HIGH or MODERATE impact?</div>
+    <div class="q-model"><p><b>12</b> – all missense; there are no HIGH-impact variants at all. They are in <i>CEP55</i> (2), <i>PDE6C</i>, <i>FRA10AC1</i> (2), <i>NOC3L</i> (2), <i>CYP2C18</i>, <i>CYP2C9</i>, <i>CYP2C8</i> (2) and <i>SORBS1</i>. The other 207 have LOW impact (20: synonymous and splice-region) or are MODIFIERs (187, mostly intronic).</p></div>
+  </div>
+  <div class="q" data-q="cq-most">
+    <div class="q-text">Most variants are MODIFIERs. Why, when these reads came from an <i>exome</i> capture?</div>
+    <div class="q-model"><p>Capture probes pull down the exons, but the captured fragments are longer than the exons and some off-target DNA comes along too, so reads also cover the flanking introns, UTRs and nearby intergenic DNA. And across the genome, variants in introns and between genes far outnumber coding variants. A whole exome typically has about 20,000 variants in coding exons – roughly half synonymous and half changing the protein (the table in the lecture) – and many more in the flanking non-coding DNA.</p></div>
+  </div>
+
+  <h2 id="cq-hgvs">2.2 Transcripts and HGVS names</h2>
+  <p>A variant is named precisely with <b>HGVS</b> nomenclature: <code>c.</code> for the position in the coding DNA of a transcript (c.1 is the A of the ATG start codon), <code>p.</code> for the protein. For example <code>c.681G&gt;A</code> and <code>p.Pro227=</code> (<code>=</code> means the amino acid is unchanged). Because positions depend on the transcript, an HGVS name always carries the transcript it refers to (e.g. <code>ENST00000371321.3:c.681G&gt;A</code>, or the RefSeq <code>NM_000769.4:c.681G&gt;A</code>). Genes on the minus strand are read in reverse complement: a genomic T&gt;C can be an A&gt;G in the gene.</p>
+  <div class="activity">
+    <div class="act-t">Activity 2.2 · Name the protein-changing variants</div>
+    <ol class="steps">
+      <li data-task="cq-2c9" data-auto="vx:select gene=CYP2C9 conseq=missense_variant">Click the <b>missense</b> variant in <i>CYP2C9</i> to open its details. <button class="do showme" type="button" data-vx="find:chr10:96702047">show me</button></li>
+      <li data-task="cq-2c8" data-auto="vx:select gene=CYP2C8 conseq=missense_variant">Now the two missense variants in <i>CYP2C8</i>. <button class="do showme" type="button" data-vx="gene:CYP2C8">show me</button> For each, open <b>All transcripts</b> in the details card.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="cq-2c9-hgvs" data-accept="arg\s*144\s*cys||r144c" data-hint="look at HGVS in the details card – the p. part">
+    <div class="q-text">What is the protein change of the <i>CYP2C9</i> variant (HGVS p. name)?</div>
+    <div class="q-model"><p><b>p.Arg144Cys</b> (R144C; <code>c.430C&gt;T</code>, rs1799853). This is the defining variant of the <b><i>CYP2C9*2</i></b> allele.</p></div>
+  </div>
+  <div class="q" data-q="cq-2c8-hgvs" data-accept="(arg\s*139\s*lys|r139k).*(lys\s*399\s*arg|k399r)||(lys\s*399\s*arg|k399r).*(arg\s*139\s*lys|r139k)" data-hint="give both, e.g. Arg139Lys and …">
+    <div class="q-text">What are the two <i>CYP2C8</i> protein changes? Why does the genomic change at chr10:96,798,749 read T&gt;C when the codon changes A&gt;G?</div>
+    <div class="q-model"><p><b>p.Arg139Lys</b> (rs11572080) and <b>p.Lys399Arg</b> (rs10509681) – together they define <b><i>CYP2C8*3</i></b>. <i>CYP2C8</i> lies on the <b>minus strand</b>, so the gene's sequence is the reverse complement of the reference: T&gt;C on the plus strand is A&gt;G in the codon (AAA → AGA, Lys → Arg).</p></div>
+  </div>
+  <div class="q" data-q="cq-isoform">
+    <div class="q-text">The original version of this practical said the <i>CYP2C8</i> variant is at “position 349 or 399” because there are two splice variants. What do the transcripts in VEP's details show, and why does it matter which one you report?</div>
+    <div class="q-model"><p>In the canonical transcript (ENST00000371270, the 490-residue protein – RefSeq NM_000770) the change is <b>p.Lys399Arg</b>. In another protein-coding transcript, ENST00000535898, the same DNA change is <b>p.Lys297Arg</b>, and in several non-coding or nonsense-mediated-decay transcripts it has no protein effect at all. The number depends on the isoform: the RefSeq transcripts give Lys399 (NM_000770), Lys329 (NM_001198853 and NM_001198855) and Lys297 (NM_001198854). None gives 349 – the older handout’s “349” was simply a mistake, which shows why a residue number is meaningless without its transcript. Always give the transcript with an HGVS name, and use the canonical (MANE Select) transcript unless there is a reason not to; PharmVar, ClinVar and the literature use the reference isoform.</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     3 · FREQUENCY
+     ===================================================================== -->
+<section class="chapter" id="freq" data-num="3" data-title="How common?" data-bench="variants" hidden>
+  <h1>How common is it?</h1>
+  <div class="meta-row"><span class="pill time">≈ 15 min</span><span class="pill">Workbench: Variants</span></div>
+  <p class="lede">The single most useful filter for rare disease is population frequency. <b>gnomAD</b> (the Genome Aggregation Database) collects exomes and genomes from people without severe childhood disease. The frequencies in this table come from gnomAD <b>version 4.1</b> – 730,947 exomes and 76,215 genomes – which Ensembl maps onto GRCh37 for its VEP service. The gnomAD website shows version 4 on GRCh38; to look up a GRCh37 position there directly, use the older version 2.1 (125,748 exomes and 15,708 genomes), so its numbers will differ a little from these.</p>
+  <div class="activity">
+    <div class="act-t">Activity 3.1 · Sort by frequency</div>
+    <ol class="steps">
+      <li data-task="fq-sort">Click the <b>gnomAD AF</b> heading to sort by allele frequency, lowest first. AF is the fraction of all chromosomes in gnomAD that carry the ALT allele (a dash means it is not in gnomAD).</li>
+      <li data-task="fq-rare" data-auto="vx:filter maxAF=0.01">Set <b>Population frequency</b> to <b>&lt; 1%</b>.</li>
+      <li data-task="fq-star" data-auto="vx:select gene=CYP2C19 conseq=synonymous_variant">Reset the filter (<b>Show all</b>), then open <i>CYP2C19*2</i> (chr10:96,541,616) and look at its frequency by ancestry. <button class="do showme" type="button" data-vx="find:chr10:96541616">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="fq-n" data-accept="\b6\b||\bsix\b" data-hint="the count with the frequency filter at < 1% (and all impacts ticked)">
+    <div class="q-text">How many of NA12878's variants have an allele frequency below 1%?</div>
+    <div class="q-model"><p><b>6</b> of 219 – and none changes a protein. Three are rare single-base changes in introns (two in <i>MYOF</i>, one in <i>BLNK</i>); two are the novel insertions/deletions in repeats, which gnomAD has never seen; and one, a single-base insertion in a non-coding transcript of <i>ZNF518A</i>, has no gnomAD frequency even though the 1000 Genomes Project finds it in everyone (open its details) – a reminder that “no frequency in gnomAD” does not always mean rare. Every protein-changing variant NA12878 has in this region is common – which is what a healthy genome looks like.</p></div>
+  </div>
+  <div class="q" data-q="fq-anc" data-accept="(east|asia).*(european|nfe)||(european|nfe).*(east|asia)" data-hint="compare the ancestry rows in the details card">
+    <div class="q-text">In which ancestry group is <i>CYP2C19*2</i> most common in gnomAD exomes, and how does that compare with non-Finnish Europeans?</div>
+    <div class="q-model"><p>In gnomAD exomes the A allele is most frequent in <b>South Asians (32%)</b> and <b>East Asians (30%)</b> – about twice its frequency in non-Finnish Europeans (15%); African 18%, Latino/admixed American 10%, all 16%. Because everyone has two copies, 1 − (1 − <i>q</i>)² of people carry at least one: about half of East and South Asian people, and about a quarter of Europeans.</p></div>
+  </div>
+  <div class="q" data-q="fq-why" data-type="mcq">
+    <div class="q-text">A variant is found in 8% of healthy people in gnomAD. For a rare, severe childhood disease this variant is…</div>
+    <div class="mcq">
+      <label data-why="Too common: if it caused a rare severe disease, the disease would be far more common than it is."><input type="radio"> a strong candidate, because it changes the protein</label>
+      <label data-correct data-why="Yes. ACMG/AMP guidelines treat an allele frequency above 5% as stand-alone evidence that a variant is benign for a rare Mendelian disorder (criterion BA1)."><input type="radio"> almost certainly not the cause</label>
+      <label data-why="Frequency matters a great deal – it is usually the first filter."><input type="radio"> impossible to judge without a structure</label>
+    </div>
+  </div>
+  <div class="q" data-q="fq-pgx">
+    <div class="q-text">So why can a common variant such as <i>CYP2C19*2</i> matter so much for drug response?</div>
+    <div class="q-model"><p>Drug response is not a disease that natural selection has acted on: before modern medicine, being slow to activate clopidogrel cost nothing, so no-function alleles of drug-metabolising enzymes could drift to high frequency. The effect only appears when a person takes the drug. Pharmacogenomics is therefore mostly about <b>common</b> variants with large effects on a specific drug, while severe Mendelian disease is mostly caused by <b>rare</b> variants.</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     4 · PREDICTING DAMAGE
+     ===================================================================== -->
+<section class="chapter" id="predict" data-num="4" data-title="Predicting damage" data-bench="variants" hidden>
+  <h1>Predicting damage</h1>
+  <div class="meta-row"><span class="pill time">≈ 15 min</span><span class="pill">Workbench: Variants</span></div>
+  <p class="lede">For most variants nobody has measured the effect, so computer predictions are used as (weak) evidence.</p>
+  <table class="table small">
+    <tr><th>Tool</th><th>What it uses</th><th>How to read it</th></tr>
+    <tr><td><b>SIFT</b></td><td>How conserved the amino acid is across related proteins</td><td>Score 0–1; below 0.05 = <i>deleterious</i>, 0.05 or above = <i>tolerated</i></td></tr>
+    <tr><td><b>PolyPhen-2</b></td><td>Conservation plus structural features of the position</td><td>Score 0–1; <i>benign</i>, <i>possibly damaging</i>, <i>probably damaging</i> (&gt; 0.9)</td></tr>
+    <tr><td><b>CADD</b></td><td>Combines many annotations, for every kind of variant</td><td>PHRED-scaled rank: 10 = top 10%, 20 = top 1%, 30 = top 0.1% most deleterious of all possible changes</td></tr>
+    <tr><td><b>SpliceAI</b></td><td>A deep neural network trained on the sequence around splice sites</td><td>Delta score 0–1 for gain or loss of an acceptor or donor; ≥ 0.5 = likely to change splicing</td></tr>
+  </table>
+  <div class="activity">
+    <div class="act-t">Activity 4.1 · Compare the predictions</div>
+    <ol class="steps">
+      <li data-task="pr-hm">Show only HIGH and MODERATE impact variants again and compare the SIFT, PolyPhen and CADD columns for the three missense variants in <i>CYP2C9</i> and <i>CYP2C8</i>. Hover over a prediction to see its score.</li>
+      <li data-task="pr-cadd" data-auto="vx:render">Sort all variants by <b>CADD</b> (highest first). Which variants score highest? Sort by <b>SpliceAI</b> too.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="pr-r144">
+    <div class="q-text">Do SIFT and PolyPhen-2 agree about <i>CYP2C9</i> p.Arg144Cys? What does that tell you about using prediction tools?</div>
+    <div class="q-model"><p>No. SIFT: <i>tolerated</i> (0.05 – right on the threshold); PolyPhen-2: <i>probably damaging</i> (0.986); CADD 21.2 (top 1%). <i>CYP2C9*2</i> is in fact a well-established decreased-function allele (CPIC), so here SIFT is wrong. Predictors often disagree, and each is wrong for a sizeable fraction of variants: SIFT relies on conservation alone, PolyPhen-2 was trained on known disease and neutral variants, and CADD learned to separate variants that survived human evolution from simulated new mutations – none of them measures drug metabolism. Use them as supporting evidence only (ACMG criteria PP3/BP4), never as proof – and prefer experimental evidence when it exists.</p></div>
+  </div>
+  <div class="q" data-q="pr-top">
+    <div class="q-text">Which variant has the highest SpliceAI score, and what is its VEP consequence?</div>
+    <div class="q-model"><p><i>CYP2C19</i> chr10:96,541,616 G&gt;A (rs4244285, <i>*2</i>): SpliceAI <b>0.99</b>. Yet VEP calls it a <b>synonymous variant</b> (LOW impact) and its CADD score is only 14.6. The next highest SpliceAI score is 0.21. Chapter 5 explains.</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     5 · A SILENT VARIANT THAT ISN'T
+     ===================================================================== -->
+<section class="chapter" id="splice" data-num="5" data-title="A “silent” variant" data-bench="igv" hidden>
+  <h1>A “silent” variant that is not silent</h1>
+  <div class="meta-row"><span class="pill time">≈ 15 min</span><span class="pill">Workbench: IGV, Variants</span></div>
+  <p class="lede">VEP calls <i>CYP2C19*2</i> (c.681G&gt;A) a <b>synonymous</b> variant with <b>LOW</b> impact: CCG and CCA both encode proline 227. Yet people with two copies make essentially no CYP2C19 enzyme. The answer lies in splicing.</p>
+  <div class="activity">
+    <div class="act-t">Activity 5.1 · Look at the exon boundary</div>
+    <ol class="steps">
+      <li data-task="sp-go" data-check="igvAt:96541616">In IGV, show the start of exon 5 of <i>CYP2C19</i>, with the variant: <button class="do showme" type="button" data-igv-go="chr10:96,541,560-96,541,660">show me</button> Zoom in until you can read the bases.</li>
+      <li data-task="sp-ag">Find the end of intron 4 (the thin line) and the start of exon 5 (the thick box). The last two bases of the intron are <b>AG</b> – the splice acceptor. Now look 38 bases into the exon, at the variant.</li>
+    </ol>
+  </div>
+  <figure class="fig splice-fig">
+    <svg viewBox="0 0 700 300" role="img" aria-labelledby="spT spD">
+      <title id="spT">How CYP2C19*2 changes splicing</title>
+      <desc id="spD">Normal: exon 5 begins after the AG at the end of intron 4. In CYP2C19*2 the G to A change creates a new AG 38 bases into the exon; the spliceosome uses it, the first 40 bases of exon 5 are lost, the reading frame shifts at codon 215 and a stop codon follows 20 codons later.</desc>
+      <style>.sq{font:600 12.5px ui-monospace,Menlo,Consolas,monospace}.lb{font:12.5px system-ui,sans-serif;fill:#52514e}.hd{font:700 13px system-ui,sans-serif;fill:#0b0b0b}</style>
+      <text class="hd" x="10" y="20">Reference (normal allele)</text>
+      <line x1="10" y1="48" x2="150" y2="48" stroke="#8a8f98" stroke-width="2"/>
+      <text class="lb" x="12" y="40">intron 4</text>
+      <text class="sq" x="60" y="68" fill="#52514e">…tttctcttag</text>
+      <rect x="150" y="36" width="540" height="24" rx="3" fill="#dbe8f7" stroke="#2a78d6"/>
+      <text class="lb" x="156" y="52" fill="#1c5cab">exon 5 starts here (c.643, codon 215)</text>
+      <text class="sq" x="152" y="80" fill="#1c5cab">ATATGCAATAATTTTCCCACTATCATTGATTATTTCCC<tspan fill="#0ca30c">G</tspan>GGAACCCATAACAAATTAC…</text>
+      <text class="lb" x="152" y="98">I  C  N  N  F  P  T  I  I  D  Y  F  P  G  T  H  N  K  …   (Pro227 = CC<tspan font-weight="700" fill="#0ca30c">G</tspan>)</text>
+      <path d="M140 72 v10" stroke="#2a78d6" stroke-width="2"/>
+      <text class="hd" x="10" y="140">CYP2C19*2 (c.681G&gt;A)</text>
+      <text class="sq" x="152" y="168" fill="#8a8f98">ATATGCAATAATTTTCCCACTATCATTGATTA<tspan fill="#eb6834">TTTCCC</tspan><tspan fill="#d03b3b" font-weight="700">AG</tspan><tspan fill="#1c5cab">GAACCCATAACAAATTAC…</tspan></text>
+      <rect x="150" y="150" width="408" height="24" rx="3" fill="none" stroke="#8a8f98" stroke-dasharray="4 3"/>
+      <text class="lb" x="152" y="194">40 bases now treated as intron: a new acceptor (<tspan fill="#d03b3b" font-weight="700">AG</tspan>) after a pyrimidine-rich stretch (<tspan fill="#eb6834">TTTCCC</tspan>)</text>
+      <rect x="560" y="150" width="130" height="24" rx="3" fill="#fde3e1" stroke="#d03b3b"/>
+      <text class="lb" x="566" y="166" fill="#8d1c16">exon 5 starts at c.683</text>
+      <text class="hd" x="10" y="232">Result in the mRNA and protein</text>
+      <text class="lb" x="10" y="254">40 is not a multiple of 3 → the reading frame shifts from codon 215; 20 wrong amino acids, then a stop codon:</text>
+      <text class="sq" x="10" y="276">…TPWIQ<tspan fill="#d03b3b">EPITNYLKTLLLWKVIFWRK</tspan>* = 234 residues instead of 490, without the haem-binding Cys435</text>
+    </svg>
+    <figcaption>How <i>CYP2C19*2</i> works. Genomic sequence (plus strand, hg19 chr10:96,541,578–96,541,635). Based on de Morais <i>et al.</i> (1994) <i>J Biol Chem</i> 269:15419–15422; sequences from hg19 and RefSeq NM_000769.</figcaption>
+  </figure>
+  <div class="activity">
+    <div class="act-t">Activity 5.2 · What the predictors say</div>
+    <ol class="steps">
+      <li data-task="sp-card" data-auto="vx:select gene=CYP2C19 conseq=synonymous_variant">Open the details of chr10:96,541,616 in the Variants tab and read the <b>SpliceAI</b> line. <button class="do showme" type="button" data-vx="find:chr10:96541616">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="sp-scores" data-accept="(0?\.99|99).*(0?\.89|89)||(0?\.89|89).*(0?\.99|99)||acceptor gain" data-hint="give the acceptor gain and acceptor loss scores">
+    <div class="q-text">What are SpliceAI's acceptor-gain and acceptor-loss scores, and at which positions? How do they match the figure?</div>
+    <div class="q-model"><p>Acceptor gain <b>0.99</b> at +2 bp and acceptor loss <b>0.89</b> at −38 bp (relative to the variant). SpliceAI predicts exactly what the figure shows: the normal acceptor at the start of exon 5 (38 bases before the variant) is lost, and a new one appears 2 bases after the variant, just after the new AG. Exon 5 then starts at c.683 instead of c.643: 40 bases shorter.</p></div>
+  </div>
+  <div class="q" data-q="sp-miss">
+    <div class="q-text">A lab filters its variants to keep only HIGH and MODERATE impact. What happens to <i>CYP2C19*2</i>, and how could the filter be improved?</div>
+    <div class="q-model"><p>It is <b>thrown away</b> – VEP classes it as synonymous (LOW), and its CADD score (14.6) is unremarkable. Better filters keep variants with a high splice-prediction score (e.g. SpliceAI ≥ 0.5), keep “splice region” variants for review, and always check known pathogenic or pharmacogenetic variants (ClinVar, PharmGKB/ClinPGx) whatever their predicted consequence. Chapter 6 lets you try both filters.</p></div>
+  </div>
+  <div class="q" data-q="sp-2copies" data-type="mcq">
+    <div class="q-text">NA12878 is heterozygous. Roughly how much working CYP2C19 would you expect her to make, compared with someone with two normal copies?</div>
+    <div class="mcq">
+      <label data-why="Heterozygotes still have one normal copy."><input type="radio"> None</label>
+      <label data-correct data-why="One normal allele makes normal enzyme; the *2 allele makes none. In practice activity varies, and the intermediate-metaboliser group overlaps the others."><input type="radio"> About half</label>
+      <label data-why="The *2 copy makes no working enzyme, so activity should be reduced."><input type="radio"> The same</label>
+    </div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     6 · PRIORITISING
+     ===================================================================== -->
+<section class="chapter" id="funnel" data-num="6" data-title="Prioritising" data-bench="variants" hidden>
+  <h1>Prioritising variants</h1>
+  <div class="meta-row"><span class="pill time">≈ 20 min</span><span class="pill">Workbench: Variants</span></div>
+  <p class="lede">A diagnostic exome has 20,000–50,000 variants; a lab must end with a handful to look at by eye. Each filter answers a question about the case. The funnel above the table shows how many variants survive each step.</p>
+  <div class="activity">
+    <div class="act-t">Activity 6.1 · Three funnels</div>
+    <ol class="steps">
+      <li data-task="fn-classic" data-auto="vx:funnelset name=classic">Show the <b>classic rare-disease</b> funnel: keep variants that change the protein (HIGH or MODERATE impact), then only rare ones. <button class="do" type="button" data-vx="funnel:classic">classic funnel</button> Write down the number at each step.</li>
+      <li data-task="fn-splice" data-auto="vx:funnelset name=splice">Now keep predicted splice changes too. <button class="do" type="button" data-vx="funnel:splice">splice-aware funnel</button></li>
+      <li data-task="fn-pgx" data-auto="vx:funnelset name=pgx">Finally, ask the pharmacogenomic question: known variants that change the protein or its splicing in the CYP2C genes. <button class="do" type="button" data-vx="funnel:pgx">pharmacogenomic funnel</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="fn-left">
+    <div class="q-text">How many variants survive the classic rare-disease funnel? Is that what you would expect for NA12878 in this region? What stage would a real diagnostic funnel add next?</div>
+    <div class="q-model"><p><b>None.</b> 12 variants change a protein (all missense), adding predicted splice changes brings in <i>CYP2C19*2</i> (13), but every one is common (allele frequency ≥ 1%; most above 10%). That is what we expect: NA12878 is healthy, and this is 3 Mb, about 0.1% of her genome. A real diagnostic funnel would next ask whether a gene fits the patient's condition (a gene panel, or phenotype terms such as HPO), whether the zygosity fits the inheritance (one variant for a dominant or new disorder, two for a recessive one), and whether ClinVar already knows the variant. You will build exactly this for the coursework patient.</p></div>
+  </div>
+  <div class="q" data-q="fn-pgxlist" data-accept="(2c19|cyp2c19).*(2c9|cyp2c9).*(2c8|cyp2c8)||(2c8).*(2c9).*(2c19)" data-hint="list the genes (and variants) left in the pharmacogenomic funnel">
+    <div class="q-text">Which variants remain in the pharmacogenomic funnel? Give the gene and protein change for each.</div>
+    <div class="q-model"><p>Four, all heterozygous: <i>CYP2C19</i> c.681G&gt;A p.(Pro227=) (rs4244285 – <i>*2</i>, splicing defect); <i>CYP2C9</i> p.Arg144Cys (rs1799853 – <i>*2</i>); <i>CYP2C8</i> p.Arg139Lys (rs11572080) and p.Lys399Arg (rs10509681) – together <i>CYP2C8*3</i>.</p></div>
+  </div>
+
+  <h2 id="fn-star">6.2 From variants to star alleles and phenotypes</h2>
+  <p>Pharmacogenes are described with <b>star alleles</b> – named haplotypes curated by PharmVar. A person's two star alleles (the <b>diplotype</b>, e.g. <i>*1/*2</i>) are translated into a predicted <b>phenotype</b> (normal, intermediate or poor metaboliser), which guidelines from <b>CPIC</b> and the Dutch <b>DPWG</b> turn into prescribing advice. <i>*1</i> is the reference allele: it is assigned when none of the defining variants is found.</p>
+  <table class="table small">
+    <tr><th>Gene</th><th>Variant(s) found</th><th>Allele</th><th>Function (CPIC)</th></tr>
+    <tr><td><i>CYP2C19</i></td><td>rs4244285 c.681G&gt;A (splicing defect)</td><td><i>*2</i></td><td>no function</td></tr>
+    <tr><td><i>CYP2C9</i></td><td>rs1799853 p.Arg144Cys</td><td><i>*2</i></td><td>decreased function</td></tr>
+    <tr><td><i>CYP2C8</i></td><td>rs11572080 p.Arg139Lys + rs10509681 p.Lys399Arg</td><td><i>*3</i></td><td>reduced activity for some substrates in the laboratory; no CPIC dosing guideline</td></tr>
+  </table>
+  <div class="q" data-q="fn-phase">
+    <div class="q-text"><i>CYP2C8*3</i> needs <b>both</b> changes on the <b>same</b> chromosome. NA12878 is heterozygous (0/1) for each. Can your data tell you whether they are on the same copy of chromosome 10? What could?</div>
+    <div class="q-model"><p>No. The genotypes are <b>unphased</b> (written with <code>/</code>): 0/1 and 0/1 fit both “both on one chromosome” (<i>*1/*3</i>) and “one on each” (two different rarer alleles). The variants are about 28 kb apart, far beyond a 76-base read or a ~170-bp fragment, so no read covers both. Options: <b>population linkage</b> (in Europeans these two almost always travel together, so <i>*1/*3</i> is by far the most likely), <b>family data</b> (NA12878's parents have been sequenced – trio phasing), or <b>long-read</b> or linked-read sequencing that reads whole haplotypes.</p></div>
+  </div>
+  <div class="q" data-q="fn-clop" data-type="mcq">
+    <div class="q-text">NA12878 is <i>CYP2C19 *1/*2</i>. According to CPIC (2022), what does this mean if she needed antiplatelet therapy after a stent (PCI) for an acute coronary syndrome?</div>
+    <div class="mcq">
+      <label data-why="That applies to normal metabolisers."><input type="radio"> Standard-dose clopidogrel, as for everyone else</label>
+      <label data-correct data-why="Intermediate metaboliser: reduced active metabolite and higher risk of clots. CPIC: avoid standard-dose clopidogrel if possible; use prasugrel or ticagrelor at standard dose if there is no contraindication."><input type="radio"> She is an intermediate metaboliser: prefer prasugrel or ticagrelor if there is no contraindication</label>
+      <label data-why="There is no validated dose increase that overcomes one no-function allele reliably; CPIC recommends an alternative drug."><input type="radio"> Double the dose of clopidogrel</label>
+    </div>
+  </div>
+  <div class="optional">
+    <h3>Extension: what the exome cannot see <span class="pill ext">Extension</span></h3>
+    <p>The increased-function allele <i>CYP2C19*17</i> is defined by a promoter variant, rs12248560 (chr10:96,521,657 in hg19), about 800 bases before the start codon. In IGV, go to <button class="do" type="button" data-igv-go="chr10:96,521,600-96,521,720">chr10:96,521,657</button>. Are there reads? What does that mean for NA12878's diplotype – and for any gene test based on exome data?</p>
+    <div class="q" data-q="fn-17">
+      <div class="q-text">Can you rule out <i>*17</i> from these data?</div>
+      <div class="q-model"><p>No. No reads cover chr10:96,521,657 – the promoter lies outside the exome capture targets. So NA12878 could be <i>*1/*2</i> or <i>*17/*2</i> (CPIC also classes <i>*2/*17</i> as an intermediate metaboliser, so the clopidogrel advice would not change here). This is why clinical pharmacogenetic tests genotype the defining positions directly. “No variant called” only means “reference” where there are reads: absence of evidence is not evidence of absence.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     7 · STRUCTURES
+     ===================================================================== -->
+<section class="chapter" id="structure" data-num="7" data-title="Proteins in 3D" data-bench="viewer" hidden>
+  <h1>The variants in 3D</h1>
+  <div class="meta-row"><span class="pill time">≈ 20 min</span><span class="pill">Workbench: 3D viewer</span></div>
+  <p class="lede">A structure turns a residue number into a place: buried or on the surface, next to the haem or far away. All three CYP2C enzymes have crystal structures. (The viewer works like the one in the molecular graphics practical: left-drag rotates, scroll zooms, right-drag moves; click a residue to select it; the command line is at the bottom.)</p>
+
+  <h2 id="st-2c19">7.1 CYP2C19 and the *2 truncation</h2>
+  <div class="activity">
+    <div class="act-t">Activity 7.1 · 4GQS</div>
+    <ol class="steps">
+      <li data-task="st-load" data-auto="viewer:loaded id=4GQS">Load CYP2C19 (PDB 4GQS: 2.87 Å, four copies of the enzyme with a benzbromarone-like inhibitor). <button class="do showme" type="button" data-cmd="load 4gqs">show me</button></li>
+      <li data-task="st-iso">Keep one copy and show the haem: <button class="do" type="button" data-cmd="isolate 4GQS A or haem or inhibitor; show cartoon 4GQS A; color grey 4GQS A; show sticks 4GQS haem; show sticks 4GQS inhibitor; center 4GQS A">chain A with haem</button></li>
+      <li data-task="st-trunc">Colour what a <i>*2</i> protein would keep: residues up to 214 (blue), the 20 frameshifted residues 215–234 (orange – their real sequence would be different), and the part that is lost, 235–490 (grey): <button class="do" type="button" data-cmd="color #2a78d6 4GQS A:1-214; color #eb6834 4GQS A:215-234; color #c9ced6 4GQS A:235-492; select 4GQS A:435; show spheres sele; color yellow sele; label sele">colour the *2 protein</button></li>
+      <li data-task="st-rot">Rotate the structure. Where is the haem? Where is Cys435 (yellow), and what does it do?</li>
+    </ol>
+  </div>
+  <div class="q" data-q="st-trunc-q">
+    <div class="q-text">Using the picture, explain why the <i>*2</i> protein cannot work even if it folded.</div>
+    <div class="q-model"><p>The haem sits in the core of the second half of the protein, held from below by the thiolate of <b>Cys435</b>, which binds the iron (Cys435 Sγ–Fe 2.3 Å in 4GQS) – the defining ligand of all P450s, in the conserved FxxGxRxCxG haem-binding loop. The <i>*2</i> protein stops at residue 234: it lacks Cys435, the I-helix above the haem and most of the haem pocket (grey), and its last 20 residues are wrong (orange). It cannot bind haem, so it has no catalytic activity – and a protein missing half its fold is likely to be degraded anyway.</p></div>
+  </div>
+  <div class="optional">
+    <h3>Extension: CYP2C19*8 <span class="pill ext">Extension</span></h3>
+    <p>UniProt lists <i>CYP2C19*8</i> (p.Trp120Arg) as an inactive allele. <button class="do" type="button" data-cmd="load 4gqs; isolate 4GQS A or haem; color #c9ced6 4GQS A; show sticks 4GQS haem; select 4GQS A:120; show sticks sele; color orange sele; label sele; center sele">show Trp120</button> How close is it to the haem, and why might Arg be tolerated badly here?</p>
+    <div class="q" data-q="st-w120">
+      <div class="q-text">What does Trp120 touch?</div>
+      <div class="q-model"><p>Its side chain lies against the haem (closest atoms about 2.7 Å – a hydrogen bond to a haem propionate). Replacing the flat, hydrophobic indole ring with a long, positively charged arginine would disturb how the haem is held, destabilising haem binding and the active site.</p></div>
+    </div>
+  </div>
+
+  <h2 id="st-2c9">7.2 CYP2C9 Arg144</h2>
+  <div class="activity">
+    <div class="act-t">Activity 7.2 · 1R9O</div>
+    <ol class="steps">
+      <li data-task="st-2c9" data-auto="viewer:loaded id=1R9O">Load CYP2C9 with the NSAID flurbiprofen bound (PDB 1R9O, 2.0 Å) and show Arg144: <button class="do showme" type="button" data-cmd="load 1r9o; isolate 1R9O A or haem or flurbiprofen; show cartoon 1R9O A; color ss 1R9O A; show spheres 1R9O haem; show sticks 1R9O flurbiprofen; select 1R9O A:144; show sticks sele; color orange sele; label sele; center 1R9O A">show me</button></li>
+      <li data-task="st-dist">Measure from the Arg144 Cα to the haem iron: <button class="do" type="button" data-cmd="distance 1R9O A:144.CA 1R9O A:500.FE">measure</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="st-r144" data-accept="\b18(\.\d)?\b" data-hint="read the distance label (Å)">
+    <div class="q-text">How far is the Arg144 Cα from the haem iron (Å)? Is Arg144 in the active site?</div>
+    <div class="q-model"><p>About <b>18 Å</b>, and its side chain points out into the solvent. Arg144 is on the <b>surface</b>, on the side of the enzyme below the haem (the “proximal” face) – far from where flurbiprofen binds. That face is thought to be where cytochrome P450 reductase docks to deliver electrons, which would explain how R144C reduces activity without touching the substrate pocket. Structure explains why SIFT (conservation only) and PolyPhen-2 disagreed: the position is not deeply conserved, but it matters for a protein partner.</p></div>
+  </div>
+
+  <h2 id="st-2c8">7.3 CYP2C8 Arg139 and Lys399</h2>
+  <div class="activity">
+    <div class="act-t">Activity 7.3 · 2NNI</div>
+    <ol class="steps">
+      <li data-task="st-2c8" data-auto="viewer:loaded id=2NNI">Load CYP2C8 with montelukast (PDB 2NNI) and show both residues of <i>*3</i>: <button class="do showme" type="button" data-cmd="load 2nni; isolate 2NNI A or haem or montelukast; show cartoon 2NNI A; color ss 2NNI A; show spheres 2NNI haem; show sticks 2NNI montelukast; select 2NNI A:139 or A:399; show spheres sele; color orange sele; label sele; center 2NNI A">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="st-2c8-q">
+    <div class="q-text">Where are Arg139 and Lys399 relative to the haem and the drug? Are the two changes conservative?</div>
+    <div class="q-model"><p>Both are on the <b>surface</b>: their closest atoms are about 14 Å (Arg139) and 21 Å (Lys399) from the haem (Cα to iron: 22 and 27 Å), and further still from montelukast – neither lines the active site. Both are <b>conservative</b> swaps between the two positively charged residues (Arg↔Lys). Consistent with this, <i>CYP2C8*3</i> changes activity modestly and in a substrate-dependent way (reduced for paclitaxel in the laboratory), rather than abolishing it.</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     8 · REPORTING
+     ===================================================================== -->
+<section class="chapter" id="report" data-num="8" data-title="Reporting" data-bench="variants" hidden>
+  <h1>Reporting variants</h1>
+  <div class="meta-row"><span class="pill time">≈ 10 min</span></div>
+  <p class="lede">A variant in a report must be unambiguous and checkable. Your coursework asks for a results table and figures of exactly this kind.</p>
+  <table class="table small">
+    <tr><th>Chr</th><th>Position (hg19)</th><th>dbSNP</th><th>Ref/Alt</th><th>Genotype (reads ref/alt)</th><th>Gene</th><th>HGVS</th><th>Consequence</th><th>gnomAD AF</th><th>Predictions</th></tr>
+    <tr><td>10</td><td>96,541,616</td><td>rs4244285</td><td>G/A</td><td>het (44/48)</td><td><i>CYP2C19</i></td><td>NM_000769.4:c.681G&gt;A, p.(Pro227=)</td><td>synonymous; aberrant splicing (<i>*2</i>)</td><td>16% (gnomAD exomes)</td><td>SpliceAI 0.99 (acceptor gain)</td></tr>
+  </table>
+  <ul>
+    <li><b>Genome build</b> in the heading or legend (hg19/GRCh37) – positions mean nothing without it.</li>
+    <li><b>Transcript</b> with the HGVS name; <b>zygosity</b> and the read counts that support it.</li>
+    <li><b>Evidence</b>: frequency, predictions, database entries (dbSNP, ClinVar, OMIM, PharmGKB), literature.</li>
+    <li><b>Figures</b> with legends that say what, where and how: “IGV view of chr10:96,541,596–96,541,636 (hg19) showing NA12878 exome reads; 58 of 109 reads carry A at c.681 of <i>CYP2C19</i> …”.</li>
+  </ul>
+  <div class="activity">
+    <div class="act-t">Activity 8.1 · Take your results with you</div>
+    <ol class="steps">
+      <li data-task="rp-dl" data-auto="vx:download">Press <b>Table</b> above the variant table to download the variants currently shown as a tab-separated file (it opens in Excel).</li>
+    </ol>
+  </div>
+
+  <h2 id="quiz">Check your understanding</h2>
+  <div class="q" data-q="z-build" data-type="mcq">
+    <div class="q-text">You annotate hg19 variants with the GRCh38 version of VEP. What happens?</div>
+    <div class="mcq">
+      <label data-why="VEP does not know which build your positions came from."><input type="radio"> VEP refuses and asks for GRCh37</label>
+      <label data-correct data-why="Positions are simply looked up on the wrong map: wrong genes, wrong consequences, and often mismatched reference alleles – a silent, serious error."><input type="radio"> You get annotations for the wrong places, usually without an error</label>
+      <label data-why="Only the numbering changes between builds – but that changes which bases the positions point at."><input type="radio"> Nothing important – only the numbers differ</label>
+    </div>
+  </div>
+  <div class="q" data-q="z-impact" data-type="mcq">
+    <div class="q-text">Which consequence has HIGH impact?</div>
+    <div class="mcq">
+      <label data-why="Missense is MODERATE."><input type="radio"> missense_variant</label>
+      <label data-correct data-why="A premature stop codon usually leads to nonsense-mediated decay or a truncated protein."><input type="radio"> stop_gained</label>
+      <label data-why="splice_region is LOW – it is outside the two essential bases of the splice site."><input type="radio"> splice_region_variant</label>
+      <label data-why="Synonymous is LOW – though chapter 5 shows it can still matter."><input type="radio"> synonymous_variant</label>
+    </div>
+  </div>
+  <div class="q" data-q="z-cadd" data-type="mcq">
+    <div class="q-text">A missense variant has CADD 28, SIFT “deleterious”, PolyPhen “probably damaging”. What can you conclude?</div>
+    <div class="mcq">
+      <label data-why="Predictions are supporting evidence only; many damaging-looking variants are harmless."><input type="radio"> It is pathogenic</label>
+      <label data-correct data-why="Agreement between predictors is supporting evidence (ACMG PP3). You still need frequency, segregation, functional and clinical evidence."><input type="radio"> The predictions support – but do not prove – a damaging effect</label>
+      <label data-why="Scores this high are among the top 1% of all possible changes; they are not ignored."><input type="radio"> Nothing – scores are meaningless</label>
+    </div>
+  </div>
+  <div class="q" data-q="z-het" data-type="mcq">
+    <div class="q-text">A rare heterozygous stop-gained variant is found in a child with a dominant-looking disorder. Which extra information would help most?</div>
+    <div class="mcq">
+      <label data-correct data-why="Whether the variant is inherited or new (de novo), whether it segregates with disease in the family, and whether loss of one copy of the gene is known to cause disease."><input type="radio"> The parents' genotypes and whether the gene is known to cause disease when one copy is lost</label>
+      <label data-why="QUAL tells you the call is real; it says nothing about its effect."><input type="radio"> A higher QUAL score</label>
+      <label data-why="Common variants are not candidates for rare disease; knowing more of them does not help."><input type="radio"> A list of the child's common variants</label>
+    </div>
+  </div>
+
+  <div class="callout lecture">
+    <div class="co-t">Now: your coursework</div>
+    <p>You have run every step your coursework needs: align (done for you), <b>call</b>, <b>filter</b>, <b>annotate</b>, <b>prioritise</b>, <b>inspect</b> and <b>visualise</b>. The <a href="coursework.html"><b>coursework workbench</b></a> runs the real bcftools and VEP on the patient's exome – on your own computer, without uploading the reads.</p>
+  </div>
+  <div class="export-row"><button class="btn primary" type="button" data-export-answers>Download my answers</button></div>
+</section>
+
+<!-- =====================================================================
+     REFERENCE
+     ===================================================================== -->
+<section class="chapter" id="ref" data-num="★" data-title="Reference" hidden>
+  <h1>Reference</h1>
+  <h2 id="ref-db">Databases and tools</h2>
+  <table class="table small">
+    <tr><th>Resource</th><th>Use it for</th><th>Link (GRCh37 where it matters)</th></tr>
+    <tr><td>Ensembl VEP</td><td>Annotating variants</td><td><a href="https://grch37.ensembl.org/Homo_sapiens/Tools/VEP" target="_blank" rel="noopener">grch37.ensembl.org → VEP</a></td></tr>
+    <tr><td>gnomAD</td><td>Population frequencies</td><td><a href="https://gnomad.broadinstitute.org/" target="_blank" rel="noopener">gnomad.broadinstitute.org</a> (dataset v2.1.1 for GRCh37 positions; v4 uses GRCh38)</td></tr>
+    <tr><td>dbSNP</td><td>rs identifiers, positions in both builds</td><td><a href="https://www.ncbi.nlm.nih.gov/snp/" target="_blank" rel="noopener">ncbi.nlm.nih.gov/snp</a></td></tr>
+    <tr><td>ClinVar</td><td>Clinical interpretations submitted by labs</td><td><a href="https://www.ncbi.nlm.nih.gov/clinvar/" target="_blank" rel="noopener">ncbi.nlm.nih.gov/clinvar</a></td></tr>
+    <tr><td>OMIM</td><td>Genes and Mendelian disorders</td><td><a href="https://www.omim.org/" target="_blank" rel="noopener">omim.org</a></td></tr>
+    <tr><td>ClinPGx (PharmGKB) · CPIC · PharmVar</td><td>Pharmacogenomic evidence, guidelines, star alleles</td><td><a href="https://www.clinpgx.org/" target="_blank" rel="noopener">clinpgx.org</a> · <a href="https://cpicpgx.org/" target="_blank" rel="noopener">cpicpgx.org</a> · <a href="https://www.pharmvar.org/" target="_blank" rel="noopener">pharmvar.org</a></td></tr>
+    <tr><td>UniProt · PDB · AlphaFold DB</td><td>Protein function, structures, models</td><td><a href="https://www.uniprot.org/" target="_blank" rel="noopener">uniprot.org</a> · <a href="https://www.rcsb.org/" target="_blank" rel="noopener">rcsb.org</a> · <a href="https://alphafold.ebi.ac.uk/" target="_blank" rel="noopener">alphafold.ebi.ac.uk</a></td></tr>
+  </table>
+  <h2 id="ref-credits">Credits and references</h2>
+  <ul>
+    <li>Annotation: Ensembl VEP REST service, GRCh37 (McLaren W <i>et al.</i> (2016) <i>Genome Biol</i> 17:122), with gnomAD v4.1 exome and genome frequencies mapped to GRCh37 by Ensembl (gnomAD: Karczewski KJ <i>et al.</i> (2020) <i>Nature</i> 581:434–443), SIFT (Ng PC &amp; Henikoff S (2003) <i>Nucleic Acids Res</i> 31:3812–3814), PolyPhen-2 (Adzhubei IA <i>et al.</i> (2010) <i>Nat Methods</i> 7:248–249), CADD (Rentzsch P <i>et al.</i> (2019) <i>Nucleic Acids Res</i> 47:D886–D894) and SpliceAI (Jaganathan K <i>et al.</i> (2019) <i>Cell</i> 176:535–548).</li>
+    <li><i>CYP2C19*2</i>: de Morais SM <i>et al.</i> (1994) <i>J Biol Chem</i> 269:15419–15422. Clopidogrel guideline: Lee CR <i>et al.</i> (2022) <i>Clin Pharmacol Ther</i> 112:959–967. Variant interpretation: Richards S <i>et al.</i> (2015) <i>Genet Med</i> 17:405–424.</li>
+    <li>Structures: 4GQS – Reynald JA <i>et al.</i> (2012) <i>J Biol Chem</i> 287:44581–44591; 1R9O – Wester MR <i>et al.</i> (2004) <i>J Biol Chem</i> 279:35630–35637; 2NNI – Schoch GA <i>et al.</i> (2008) <i>J Biol Chem</i> 283:17227–17237. Molecular graphics: NGL Viewer (Rose AS <i>et al.</i> (2018) <i>Bioinformatics</i> 34:3755–3758; MIT licence).</li>
+    <li>Reads: 1000 Genomes Project NA12878 exome (SRR098401). Genome browser: igv.js (MIT licence).</li>
+    <li>Adapted from the module's cytochrome P450 IGV tutorial, VEP walkthrough and molecular graphics tutorial.</li>
+  </ul>
+</section>
+
+    </aside>
+
+    <div class="splitter" role="separator" aria-orientation="vertical" title="Drag to resize · double-click to reset"></div>
+
+    <section class="bench" aria-label="Workbench">
+      <div class="wb-tabs" role="tablist">
+        <button class="wb-tab on" type="button" role="tab" data-wb="variants"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>Variants<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="igv"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M8 4v4M14 10v4M11 16v4"/></svg>IGV<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="viewer"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>3D viewer<span class="dot"></span></button>
+        <button class="bench-close" type="button" aria-label="Back to the tutorial">✕ Tutorial</button>
+      </div>
+      <div class="wb-body">
+        <div class="wb-pane" data-wb="variants"><div id="vxRoot"></div></div>
+        <div class="wb-pane" data-wb="igv" hidden><div id="igvRoot"></div></div>
+        <div class="wb-pane" data-wb="viewer" hidden><div id="viewerRoot"></div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<button class="bench-fab" type="button" aria-label="Open the workbench"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>Workbench</button>
+<noscript><p style="padding:20px">This page needs JavaScript.</p></noscript>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/vendor/ngl/ngl.js"></script>
+<script src="assets/js/core.js"></script>
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/viewer-core.js"></script>
+<script src="assets/js/annot.js"></script>
+<script src="assets/js/alphafold.js"></script>
+<script src="assets/js/viewer-ui.js"></script>
+<script src="assets/js/commands.js"></script>
+<script src="assets/js/session.js"></script>
+<script src="assets/js/vfs.js"></script>
+<script src="assets/vendor/igv/igv.min.js"></script>
+<script src="assets/js/igv-panel.js"></script>
+<script src="assets/js/variants.js"></script>
+<script src="assets/js/page-meaning.js"></script>
+<script src="assets/js/tutorial.js"></script>
+</body>
+</html>

@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reads to variants – from raw sequencing reads to a pharmacogenetic variant</title>
+<meta name="description" content="A self-contained practical: quality-check exome reads, align them to the human genome, call variants and find CYP2C19*2 – first on the command line, then with a Galaxy-style workflow engine.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2310263a'/%3E%3Cpath d='M6 9h20M6 16h20M6 23h20' stroke='%233fb7a0' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='19' cy='16' r='3.4' fill='%23f28e2b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/genomics.css">
+</head>
+<body data-page="reads" data-title="Reads to variants">
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="index.html" title="All practicals">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#17344d"/><path d="M6 9h20M6 16h20M6 23h20" stroke="#3fb7a0" stroke-width="2.4" stroke-linecap="round"/><circle cx="19" cy="16" r="3.4" fill="#f28e2b"/></svg>
+      <div>
+        <div class="brand-title">Reads to variants</div>
+        <div class="brand-sub">Genomic variant analysis · practical</div>
+      </div>
+    </a>
+    <div class="spacer"></div>
+    <div class="progress-wrap" title="Activities and questions completed (saved in this browser)"><span class="progress-label">0% done</span><div class="progress"><i></i></div></div>
+    <button class="btn" id="answersBtn" type="button"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg><span>My answers</span></button>
+    <button class="btn" id="helpBtn" type="button" title="How this page works"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.6-2.8 4M12 17.5h.01"/></svg><span>Help</span></button>
+  </header>
+
+  <div class="main">
+    <aside class="tut" aria-label="Tutorial">
+      <nav class="ch-nav" aria-label="Chapters"></nav>
+
+<!-- =====================================================================
+     0 · START HERE
+     ===================================================================== -->
+<section class="chapter" id="start" data-num="0" data-title="Start here" data-bench="terminal">
+  <h1>Reads to variants: does this person carry <i>CYP2C19*2</i>?</h1>
+  <p class="lede">You will take raw sequencing reads from a human exome and turn them into a list of genetic variants – checking the reads, aligning them to the reference genome, sorting and indexing the alignments, calling and filtering variants – and finish by finding one variant that matters for prescribing: <b><i>CYP2C19*2</i></b>. You will run the pipeline twice: by typing commands, and in a Galaxy-style <b>workflow engine</b>.</p>
+  <div class="meta-row"><span class="pill time">About 2½ hours</span><span class="pill">No software to install</span><span class="pill">Chrome, Edge, Firefox or Safari on a laptop or desktop</span></div>
+
+  <div class="callout pharm">
+    <div class="co-t">The clinical question</div>
+    <p><b>Clopidogrel</b> is an antiplatelet drug given after heart attacks, stents and strokes. It is a <b>prodrug</b>: liver cytochrome P450 enzymes – mainly <b>CYP2C19</b> – convert it to the active metabolite that blocks the platelet P2Y<sub>12</sub> receptor. People who carry a <b>no-function</b> <i>CYP2C19</i> allele make less active drug and are at higher risk of clots on standard treatment. The commonest no-function allele, <b><i>CYP2C19*2</i></b> (rs4244285), is carried on about 15% of chromosomes in Europeans and 30–36% in East and South Asians (1000 Genomes). Guidelines now recommend genotype-guided prescribing – for example CPIC for acute coronary syndromes and NICE (DG59) after ischaemic stroke or TIA.</p>
+    <p><b>Your job:</b> start from the raw reads of one person and find out whether she carries <i>CYP2C19*2</i> – and how confident you can be.</p>
+  </div>
+
+  <h2>The data</h2>
+  <p>The person is <b>NA12878</b>, a woman from a Utah family of northern and western European ancestry (CEPH collection) whose DNA has been sequenced more times than anyone else's. Her genome is the reference sample that laboratories use to test their pipelines (HapMap, 1000 Genomes, Genome in a Bottle). You have <b>exome</b> reads – DNA fragments captured from the exons – sequenced on an Illumina machine as <b>paired-end</b> 76-base reads. To keep things fast we only give you the read pairs from the region of chromosome 10 that holds the <i>CYP2C</i> gene cluster (<i>CYP2C18, CYP2C19, CYP2C9, CYP2C8</i>) – about 150,000 pairs instead of tens of millions.</p>
+
+  <div class="callout info">
+    <div class="co-t">Everything happens on this page</div>
+    <p>Instructions are on the <b>left</b>. The <b>workbench</b> on the right has four tabs: a <b>Terminal</b> (a Linux command line), a <b>Report</b> viewer for FastQC, the <b>IGV</b> genome browser and a <b>Workflow engine</b> that works like Galaxy.</p>
+    <ul>
+      <li><b>samtools</b> and <b>bcftools</b> are the real programs, compiled to run inside your browser (WebAssembly). <b>FastQC</b> and <b>BWA</b> are too big for a browser, so they replay real runs on exactly these data. Your files never leave your computer.</li>
+      <li><button class="do showme" type="button" data-term="ls">show me</button> buttons type a command into the terminal for you – press <span class="kbd">Enter</span> to run it. Try typing it yourself first: typing is how you learn it.</li>
+      <li>Activity steps <b>tick themselves</b> when the page sees you do them; you can also tick them yourself. Answers are saved in this browser – <b>My answers</b> (top right) downloads them.</li>
+    </ul>
+  </div>
+
+  <div class="name-field"><label for="studentName"><b>Your name</b> (optional – it goes on your downloaded answers):</label> <input id="studentName" type="text" data-student-name autocomplete="name"></div>
+
+  <h2>The pipeline</h2>
+  <div class="lp-flow"><span>FASTQ reads</span><i>→</i><span>quality control</span><i>→</i><span>align to hg19</span><i>→</i><span>sort &amp; index (BAM)</span><i>→</i><span>call variants (VCF)</span><i>→</i><span>filter</span><i>→</i><span>inspect in IGV</span></div>
+  <table class="table">
+    <tr><th>Chapter</th><th>What you will do</th><th>Time</th></tr>
+    <tr><td><button class="goto" data-goto="cli" type="button">1 · The command line</button></td><td>Find your way around; look inside a FASTQ file; count reads</td><td>20 min</td></tr>
+    <tr><td><button class="goto" data-goto="qc" type="button">2 · Quality control</button></td><td>Run FastQC and read the report</td><td>15 min</td></tr>
+    <tr><td><button class="goto" data-goto="align" type="button">3 · Alignment</button></td><td>Align the reads with BWA-MEM; read a SAM file</td><td>20 min</td></tr>
+    <tr><td><button class="goto" data-goto="bam" type="button">4 · Sort, index, summarise</button></td><td>Make a sorted, indexed BAM; where did the reads go?</td><td>15 min</td></tr>
+    <tr><td><button class="goto" data-goto="call" type="button">5 · Calling variants</button></td><td>bcftools mpileup and call; read and filter a VCF; find <i>CYP2C19*2</i></td><td>25 min</td></tr>
+    <tr><td><button class="goto" data-goto="igv" type="button">6 · See it in IGV</button></td><td>Check the call in the reads; read the codon</td><td>15 min</td></tr>
+    <tr><td><button class="goto" data-goto="workflow" type="button">7 · A workflow engine</button></td><td>Run the same pipeline in a Galaxy-style engine; finish and run a workflow</td><td>30 min</td></tr>
+    <tr><td><button class="goto" data-goto="compare" type="button">8 · Which is better?</button></td><td>Command line vs workflow engine; quiz</td><td>10 min</td></tr>
+  </table>
+  <p class="hint">Sections marked <span class="pill ext">Extension</span> are optional and are not counted in your progress bar. The next practical, <a href="variants-to-meaning.html">Variants to meaning</a>, starts from the variants you make today, and your coursework uses the same steps on a patient's exome.</p>
+
+  <h2>By the end you should be able to…</h2>
+  <ul>
+    <li>describe the FASTQ, SAM/BAM and VCF formats and read the key fields of each;</li>
+    <li>judge read quality from a FastQC report;</li>
+    <li>run an alignment and variant-calling pipeline on the command line, and explain what each step and option does;</li>
+    <li>check a variant call against the reads in a genome browser;</li>
+    <li>run the same pipeline in a workflow engine, find the command behind any result, and weigh up the two approaches.</li>
+  </ul>
+</section>
+
+<!-- =====================================================================
+     1 · THE COMMAND LINE
+     ===================================================================== -->
+<section class="chapter" id="cli" data-num="1" data-title="The command line" data-bench="terminal" hidden>
+  <h1>The command line</h1>
+  <div class="meta-row"><span class="pill time">≈ 20 min</span><span class="pill">Workbench: Terminal</span></div>
+  <p class="lede">Almost every sequence-analysis program is a <b>command-line</b> program: you type its name, options and files, and it writes files back. Genomics servers and clusters have no windows and mice, only a terminal like this one. The same few commands carry you a long way.</p>
+
+  <h2 id="cli-where">1.1 Where am I?</h2>
+  <div class="activity">
+    <div class="act-t">Activity 1.1 · Look around</div>
+    <ol class="steps">
+      <li data-task="c-pwd" data-auto="term:command name=pwd code=0">Click in the terminal, type <code>pwd</code> (<i>print working directory</i>) and press <span class="kbd">Enter</span>. <button class="do showme" type="button" data-term="pwd">show me</button></li>
+      <li data-task="c-ls" data-auto="term:command name=ls code=0">List what is here with <code>ls</code>. <button class="do showme" type="button" data-term="ls">show me</button></li>
+      <li data-task="c-readme" data-auto="term:command line~readme code=0">Read the notes: <code>cat README.txt</code> <button class="do showme" type="button" data-term="cat README.txt">show me</button></li>
+      <li data-task="c-lsl" data-auto="term:command line~ls -l code=0">List the data and reference folders with sizes: <code>ls -lh data ref</code> (<code>-l</code> long format, <code>-h</code> human-readable sizes). <button class="do showme" type="button" data-term="ls -lh data ref">show me</button></li>
+    </ol>
+  </div>
+  <table class="table">
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>pwd</code></td><td>Where am I? (the working directory)</td></tr>
+    <tr><td><code>ls</code> · <code>ls -lh FOLDER</code></td><td>List files · with sizes and dates</td></tr>
+    <tr><td><code>cd FOLDER</code> · <code>cd ..</code> · <code>cd ~</code></td><td>Change directory · go up one level · go home</td></tr>
+    <tr><td><code>cat FILE</code> · <code>head -n 20 FILE</code> · <code>tail FILE</code></td><td>Print a whole file · its first 20 lines · its last 10 lines</td></tr>
+    <tr><td><code>zcat FILE.gz</code></td><td>Print a gzip-compressed file, uncompressed</td></tr>
+    <tr><td><code>wc -l</code> · <code>grep PATTERN</code></td><td>Count lines · keep only lines containing PATTERN</td></tr>
+    <tr><td><span class="kbd">Tab</span> · <span class="kbd">↑</span> / <span class="kbd">↓</span></td><td>Complete a file name (saves typing <i>and</i> typos) · recall earlier commands</td></tr>
+  </table>
+  <p>Paths such as <code>data/NA12878_chr10_R1.fastq.gz</code> are <b>relative</b> to where you are. The same file has the <b>absolute</b> path <code>/home/student/practical/data/NA12878_chr10_R1.fastq.gz</code>, and <code>~</code> is short for your home folder, <code>/home/student</code>.</p>
+  <div class="q" data-q="c-refsize" data-type="mcq">
+    <div class="q-text">The reference genome file <code>ref/hg19.fa</code> is about 3 GB. Why so big?</div>
+    <div class="mcq">
+      <label data-why="Close – but a FASTA file is plain text: it holds the sequence once, with no reads in it."><input type="radio"> It contains every read ever sequenced from the human genome</label>
+      <label data-correct data-why="Right: about 3.1 billion bases of the haploid genome, stored as plain text at one byte per base (plus line breaks)."><input type="radio"> It is the whole human genome sequence: about 3.1 billion letters at one byte each</label>
+      <label data-why="No – hg19.fa is plain text. The BWA index files next to it (.bwt, .sa, .pac) are the extra 5 GB."><input type="radio"> It is compressed binary data used only by BWA</label>
+    </div>
+  </div>
+
+  <h2 id="cli-fastq">1.2 Inside a FASTQ file</h2>
+  <p>Sequencers write reads in <b>FASTQ</b> format. The files are big, so they are almost always gzip-compressed (<code>.gz</code>). <code>zcat</code> uncompresses a file on the fly, and the <b>pipe</b> <code>|</code> sends its output straight into the next program – here <code>head</code>, which keeps the first lines.</p>
+  <div class="activity">
+    <div class="act-t">Activity 1.2 · The first two reads</div>
+    <ol class="steps">
+      <li data-task="c-fq" data-auto="term:command line~zcat code=0 line~head">Show the first 8 lines of read file 1: <code>zcat data/NA12878_chr10_R1.fastq.gz | head -n 8</code> <button class="do showme" type="button" data-term="zcat data/NA12878_chr10_R1.fastq.gz | head -n 8">show me</button></li>
+      <li data-task="c-fq2" data-auto="term:command line~r2.fastq code=0">Now the first read of file 2: <code>zcat data/NA12878_chr10_R2.fastq.gz | head -n 4</code>. Compare its name with the first read of file 1. <button class="do showme" type="button" data-term="zcat data/NA12878_chr10_R2.fastq.gz | head -n 4">show me</button></li>
+    </ol>
+  </div>
+  <table class="table">
+    <tr><th>Line</th><th>Example</th><th>Meaning</th></tr>
+    <tr><td>1</td><td><code>@SRR098401.94186032/1</code></td><td><code>@</code> then the read name. <code>/1</code> and <code>/2</code> mark the two reads of a pair.</td></tr>
+    <tr><td>2</td><td><code>TTCTATTTTTATAAGG…</code></td><td>The bases called by the sequencer (N = no call)</td></tr>
+    <tr><td>3</td><td><code>+</code></td><td>Separator (sometimes repeats the name)</td></tr>
+    <tr><td>4</td><td><code>CAEFCCDDDDDCDGIH…</code></td><td>One quality character per base</td></tr>
+  </table>
+  <p>Each quality character encodes a <b>Phred score</b> <i>Q</i> = −10 log<sub>10</sub>(<i>p</i>), where <i>p</i> is the probability that the base is wrong. The character's ASCII code minus 33 gives <i>Q</i> (“Phred+33”, also called Sanger or Illumina 1.8+).</p>
+  <table class="table small">
+    <tr><th>Character</th><td><code>#</code></td><td><code>+</code></td><td><code>5</code></td><td><code>?</code></td><td><code>@</code></td><td><code>I</code></td></tr>
+    <tr><th>Phred score</th><td>2</td><td>10</td><td>20</td><td>30</td><td>31</td><td>40</td></tr>
+    <tr><th>Chance the base is wrong</th><td>63%</td><td>1 in 10</td><td>1 in 100</td><td>1 in 1,000</td><td>≈ 1 in 1,260</td><td>1 in 10,000</td></tr>
+  </table>
+  <div class="q" data-q="c-len" data-accept="\b76\b" data-hint="count the letters on line 2 – or look at Basic Statistics in the next chapter">
+    <div class="q-text">How long are the reads (in bases)?</div>
+    <div class="q-model"><p><b>76 bases</b> – every read in these files is 76 long (FastQC's Basic Statistics agrees).</p></div>
+  </div>
+  <div class="q" data-q="c-hash">
+    <div class="q-text">The second read in file 1 ends in <code>#######</code>. What quality is that, and what should an aligner or variant caller do with those bases?</div>
+    <div class="q-model"><p><code>#</code> is ASCII 35 → <b>Q2</b>: a 63% chance of being wrong, i.e. no real information. Illumina's software marks the unreliable end of a read this way. The bases should count for (almost) nothing: BWA-MEM can soft-clip poor ends that do not match, and variant callers weight every base by its quality – bcftools ignores bases below Q13 by default. Trimming the tails off before alignment is another option.</p></div>
+  </div>
+  <div class="q" data-q="c-pair">
+    <div class="q-text">The first reads of the two files have the same name except for <code>/1</code> and <code>/2</code>. What does that tell you, and why is sequencing both ends of each fragment useful?</div>
+    <div class="q-model"><p>They are the two ends of the <b>same DNA fragment</b> (a read pair): read 1 from one end, read 2 from the other end on the opposite strand. Pairs are useful because the two reads must map close together, facing each other: that places reads in repeats and paralogous genes that a single short read could not place, flags poorly mapped reads, estimates the fragment (insert) size, and reveals structural variants when pairs map too far apart or in the wrong orientation. The files must stay in the same order – read <i>n</i> of file 1 pairs with read <i>n</i> of file 2.</p></div>
+  </div>
+
+  <h2 id="cli-count">1.3 How many reads?</h2>
+  <div class="activity">
+    <div class="act-t">Activity 1.3 · Count the reads</div>
+    <ol class="steps">
+      <li data-task="c-wc" data-auto="term:command line~wc -l code=0">Count the lines in file 1: <code>zcat data/NA12878_chr10_R1.fastq.gz | wc -l</code>. Each read takes 4 lines. <button class="do showme" type="button" data-term="zcat data/NA12878_chr10_R1.fastq.gz | wc -l">show me</button></li>
+      <li data-task="c-grep" data-auto="term:command line~grep -c code=0">Another way to count reads is to count the name lines, which start with <code>@</code>: <code>zcat data/NA12878_chr10_R1.fastq.gz | grep -c '^@'</code> (<code>^</code> means “at the start of the line”, <code>-c</code> counts matches). <button class="do showme" type="button" data-term="zcat data/NA12878_chr10_R1.fastq.gz | grep -c '^@'">show me</button></li>
+      <li data-task="c-grep2" data-auto="term:command line~^@SRR code=0">Try again with a longer pattern: <code>zcat data/NA12878_chr10_R1.fastq.gz | grep -c '^@SRR'</code> <button class="do showme" type="button" data-term="zcat data/NA12878_chr10_R1.fastq.gz | grep -c '^@SRR'">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="c-nreads" data-accept="153[, ]?180" data-hint="number of lines ÷ 4">
+    <div class="q-text">How many reads are in file 1?</div>
+    <div class="q-model"><p>612,720 lines ÷ 4 = <b>153,180 reads</b> (and the same number in file 2: 153,180 pairs, 306,360 reads in all).</p></div>
+  </div>
+  <div class="q" data-q="c-at">
+    <div class="q-text"><code>grep -c '^@'</code> gave a bigger number than the number of reads. Why? What does this teach you about checking your commands?</div>
+    <div class="q-model"><p><code>@</code> is also a <b>quality character</b> (Q31), so some quality lines (line 4) start with <code>@</code> too – here 24,186 of them in file 1. <code>'^@SRR'</code> only matches read names and gives the right answer, 153,180. Lesson: a command that runs without an error can still give a wrong answer – check results against something you know (here, lines ÷ 4). Programs that understand the format (FastQC, <code>seqkit stats</code>) are safer.</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     2 · QUALITY CONTROL
+     ===================================================================== -->
+<section class="chapter" id="qc" data-num="2" data-title="Quality control" data-bench="terminal" hidden>
+  <h1>Quality control with FastQC</h1>
+  <div class="meta-row"><span class="pill time">≈ 15 min</span><span class="pill">Workbench: Terminal, Report</span></div>
+  <p class="lede">Before spending hours on alignment, check that the reads are worth aligning. <b>FastQC</b> summarises millions of reads in a few plots, each marked <span class="fq-badge ok"><b>✓</b>Pass</span>, <span class="fq-badge warn"><b>!</b>Warning</span> or <span class="fq-badge fail"><b>✗</b>Fail</span>. The flags are rules of thumb designed for whole-genome shotgun data – you still have to think about what they mean for <i>your</i> data.</p>
+  <div class="activity">
+    <div class="act-t">Activity 2.1 · Run FastQC</div>
+    <ol class="steps">
+      <li data-task="q-run" data-auto="term:command name=fastqc code=0">Run FastQC on both files, writing the reports into <code>results/</code>: <code>fastqc -o results data/NA12878_chr10_R1.fastq.gz data/NA12878_chr10_R2.fastq.gz</code> <button class="do showme" type="button" data-term="fastqc -o results data/NA12878_chr10_R1.fastq.gz data/NA12878_chr10_R2.fastq.gz">show me</button></li>
+      <li data-task="q-ls" data-auto="term:command line~ls results code=0">See what it made: <code>ls results</code> <button class="do showme" type="button" data-term="ls results">show me</button></li>
+      <li data-task="q-open1" data-auto="fastqc:open name=R1">Open the first report: <code>open results/NA12878_chr10_R1_fastqc.html</code> – it appears in the <b>Report</b> tab. <button class="do showme" type="button" data-term="open results/NA12878_chr10_R1_fastqc.html">show me</button></li>
+      <li data-task="q-open2" data-auto="fastqc:open name=R2">Open the report for file 2 as well (<span class="kbd">↑</span> recalls the last command – edit it). <button class="do showme" type="button" data-term="open results/NA12878_chr10_R2_fastqc.html">show me</button></li>
+    </ol>
+  </div>
+  <p>Work down each report (click a module in the summary box to jump to it; each has a short explanation). Hover over the plots to read the values.</p>
+  <ul>
+    <li><b>Basic Statistics</b> – number of reads, read length, GC content and the quality encoding.</li>
+    <li><b>Per base sequence quality</b> – box plots of quality at each position along the reads. Green, orange and red bands mark very good (≥ 28), reasonable and poor (&lt; 20) quality.</li>
+    <li><b>Sequence Duplication Levels</b> and <b>Adapter Content</b> – signs of PCR over-amplification and of fragments shorter than the reads.</li>
+  </ul>
+  <div class="q" data-q="q-fail" data-type="mcq">
+    <div class="q-text">Which file has a <b>Fail</b>, in which module – and what does the plot show?</div>
+    <div class="mcq">
+      <label data-why="File 1 passes every module."><input type="radio"> File 1 – Adapter Content: adapters in most reads</label>
+      <label data-correct data-why="Yes. In file 2 the median stays good, but the lower quartile falls to Q2 at the last bases, and the 10th percentile is at Q2 from about base 50 – many reads have #-masked tails."><input type="radio"> File 2 – Per base sequence quality: quality falls towards the end of the reads</label>
+      <label data-why="Duplication passes in both files (about 79% of reads would remain after removing duplicates)."><input type="radio"> Both files – Sequence Duplication Levels</label>
+    </div>
+  </div>
+  <div class="q" data-q="q-why-r2">
+    <div class="q-text">Why does quality fall along the reads, and why is read 2 usually worse than read 1?</div>
+    <div class="q-model"><p>Illumina sequencing reads one base per chemistry cycle. In each cycle a few molecules in a cluster fail to extend or extend twice, so the copies in a cluster drift out of step (<b>phasing</b> and pre-phasing); the signal gets noisier with every cycle and the quality scores fall. Read 2 is sequenced after read 1 <i>and</i> after the fragments have been re-synthesised on the flow cell, so its clusters have been through many more cycles and chemistry steps – it is typically worse.</p></div>
+  </div>
+  <div class="q" data-q="q-trim">
+    <div class="q-text">Would you trim these reads before aligning them? Give one reason for and one against.</div>
+    <div class="q-model"><p><b>For:</b> about a fifth of the read 1s and nearly a third of the read 2s end in a run of Q2 (<code>#</code>) bases; trimming them removes noise and helps some aligners. <b>Against / not essential here:</b> BWA-MEM does local alignment and soft-clips ends that do not match; bcftools discards bases below Q13 and weights the rest by quality, so the poor tails hardly affect the calls. Adapter content is below 1%, so adapter trimming is not needed. Many pipelines trim anyway (e.g. fastp, Trimmomatic, Cutadapt); what matters is to decide, and to record the decision.</p></div>
+  </div>
+  <div class="q" data-q="q-dup">
+    <div class="q-text">FastQC estimates that about 79% of the reads would remain if exact duplicates were removed. Why do exome data usually show some duplication, and what do pipelines do about it?</div>
+    <div class="q-model"><p>Exome libraries are amplified by <b>PCR</b> and the captured targets are sequenced very deeply, so many reads are copies of the same original fragment (and deep sequencing of a small target also produces some identical fragments by chance). Duplicates are not independent evidence, and a PCR error copied many times can look like a variant. Pipelines therefore <b>mark duplicates</b> after alignment (e.g. <code>samtools markdup</code>, Picard MarkDuplicates), and callers such as bcftools ignore reads flagged as duplicates. We skip that step today to keep the pipeline short – it is one of the “clean-up” steps a production pipeline adds.</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     3 · ALIGNMENT
+     ===================================================================== -->
+<section class="chapter" id="align" data-num="3" data-title="Alignment" data-bench="terminal" hidden>
+  <h1>Aligning the reads to the genome</h1>
+  <div class="meta-row"><span class="pill time">≈ 20 min</span><span class="pill">Workbench: Terminal</span></div>
+  <p class="lede">A read on its own is 76 letters with no address. <b>Alignment</b> (or mapping) finds where in the reference genome each read comes from, allowing for sequencing errors and for real differences – the variants we are looking for.</p>
+
+  <h2 id="al-ref">3.1 The reference genome</h2>
+  <div class="activity">
+    <div class="act-t">Activity 3.1 · Meet hg19</div>
+    <ol class="steps">
+      <li data-task="a-head" data-auto="term:command line~hg19.fa code=0 name=head">Look at the start of the reference: <code>head -n 3 ref/hg19.fa</code> – a FASTA file: a <code>&gt;name</code> line, then the sequence. <button class="do showme" type="button" data-term="head -n 3 ref/hg19.fa">show me</button></li>
+      <li data-task="a-fai" data-auto="term:command line~.fai code=0">The <code>.fai</code> index lists every sequence and its length: <code>cut -f 1,2 ref/hg19.fa.fai</code> <button class="do showme" type="button" data-term="cut -f 1,2 ref/hg19.fa.fai">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="a-chr10" data-accept="135[, ]?534[, ]?747" data-hint="the second column of the chr10 line">
+    <div class="q-text">How long is chromosome 10 in hg19?</div>
+    <div class="q-model"><p><b>135,534,747</b> bases.</p></div>
+  </div>
+  <div class="callout warn">
+    <div class="co-t">Genome builds</div>
+    <p>The human reference is updated from time to time, and positions change between versions. <b>hg19</b> (UCSC name) = <b>GRCh37</b> (Genome Reference Consortium name), released in 2009; the current build is <b>GRCh38/hg38</b> (2013). <i>CYP2C19*2</i> is at chr10:96,541,616 on GRCh37 but chr10:94,781,859 on GRCh38. Use one build for everything – reads, annotation and databases. Your coursework data are aligned to <b>hg19</b>, so this practical uses hg19 too (and so should VEP and gnomAD when you look variants up: choose GRCh37).</p>
+  </div>
+
+  <h2 id="al-index">3.2 The index</h2>
+  <p>Scanning 3.1 billion bases for each of 300,000 reads would take far too long, so aligners first build an <b>index</b> of the genome. BWA builds an <b>FM-index</b>, a compressed index based on the Burrows–Wheeler transform (the same transform the bzip2 compression program uses): with it BWA can find where any short sequence occurs in the genome almost instantly. The index files sit next to the reference: <code>hg19.fa.amb</code>, <code>.ann</code>, <code>.bwt</code>, <code>.pac</code> and <code>.sa</code>.</p>
+  <div class="activity">
+    <div class="act-t">Activity 3.2 · Index (already done)</div>
+    <ol class="steps">
+      <li data-task="a-index" data-auto="term:command line~bwa index">Type the indexing command to see what happens: <code>bwa index ref/hg19.fa</code> <button class="do showme" type="button" data-term="bwa index ref/hg19.fa">show me</button></li>
+    </ol>
+  </div>
+
+  <h2 id="al-bwa">3.3 Align with BWA-MEM</h2>
+  <p><code>bwa mem</code> takes the reference (it finds the index files from the name) and the two read files, and writes alignments in <b>SAM</b> format to the screen. The <b>redirect</b> <code>&gt;</code> sends that output into a file instead. Messages about progress go to a separate channel (standard error), so they still appear on screen.</p>
+  <div class="activity">
+    <div class="act-t">Activity 3.3 · Run the alignment</div>
+    <ol class="steps">
+      <li data-task="a-bwa" data-check="exists:results/aligned.sam">Align the read pairs: <code>bwa mem ref/hg19.fa data/NA12878_chr10_R1.fastq.gz data/NA12878_chr10_R2.fastq.gz &gt; results/aligned.sam</code> <button class="do showme" type="button" data-term="bwa mem ref/hg19.fa data/NA12878_chr10_R1.fastq.gz data/NA12878_chr10_R2.fastq.gz > results/aligned.sam">show me</button></li>
+      <li data-task="a-log">While it runs, read the messages. BWA reads the pairs in batches and, from the pairs that map uniquely, estimates the size of the DNA fragments (the <b>insert size</b>).</li>
+    </ol>
+  </div>
+  <div class="q" data-q="a-insert" data-accept="\b1[67]\d(\.\d+)?\b" data-hint="look for “mean and std.dev” in the messages">
+    <div class="q-text">What is the mean insert size (fragment length) BWA estimated? Give the number in bp.</div>
+    <div class="q-model"><p>About <b>169 bp</b> (standard deviation about 64 bp; median 158 bp). Two 76-base reads cover 152 bases, so nearly half of the fragments are short enough for the two reads to overlap in the middle – the same bases are read twice, once from each end. Adapter sequence appears only when a fragment is shorter than a single read (76 bases), which is rare.</p></div>
+  </div>
+
+  <h2 id="al-sam">3.4 Reading a SAM file</h2>
+  <div class="activity">
+    <div class="act-t">Activity 3.4 · Inside aligned.sam</div>
+    <ol class="steps">
+      <li data-task="a-samhead" data-auto="term:command line~aligned.sam code=0 name=head">The file starts with a <b>header</b> of lines beginning with <code>@</code>: <code>head -n 5 results/aligned.sam</code> <button class="do showme" type="button" data-term="head -n 5 results/aligned.sam">show me</button></li>
+      <li data-task="a-samrec" data-auto="term:command line~grep -v code=0">Skip the header to see the first read pair: <code>grep -v '^@' results/aligned.sam | head -n 2</code> (<code>-v</code> keeps the lines that do <i>not</i> match). <button class="do showme" type="button" data-term="grep -v '^@' results/aligned.sam | head -n 2">show me</button></li>
+    </ol>
+  </div>
+  <p>Each alignment line has 11 tab-separated columns, then optional tags:</p>
+  <table class="table small">
+    <tr><th>#</th><th>Column</th><th>Meaning</th></tr>
+    <tr><td>1</td><td>QNAME</td><td>Read name (the same for both reads of a pair)</td></tr>
+    <tr><td>2</td><td>FLAG</td><td>A number whose bits answer yes/no questions about the read (table below)</td></tr>
+    <tr><td>3–4</td><td>RNAME, POS</td><td>Chromosome and leftmost position of the alignment</td></tr>
+    <tr><td>5</td><td>MAPQ</td><td>Mapping quality: Phred-scaled confidence that this is the right place. 60 is BWA's maximum; 0 means the read fits equally well elsewhere</td></tr>
+    <tr><td>6</td><td>CIGAR</td><td>How the read aligns: <code>76M</code> = 76 aligned bases; <code>S</code> soft-clipped, <code>I</code> insertion, <code>D</code> deletion</td></tr>
+    <tr><td>7–9</td><td>RNEXT, PNEXT, TLEN</td><td>Where the mate aligned (<code>=</code> same chromosome) and the fragment length</td></tr>
+    <tr><td>10–11</td><td>SEQ, QUAL</td><td>The bases and qualities (reverse-complemented if the read aligned to the reverse strand)</td></tr>
+    <tr><td>12+</td><td>tags</td><td><code>NM</code> number of differences, <code>MD</code> where they are, <code>AS</code> alignment score, <code>XS</code> score of the next-best place</td></tr>
+  </table>
+  <table class="table small">
+    <tr><th>FLAG bit</th><th>Meaning</th><th>FLAG bit</th><th>Meaning</th></tr>
+    <tr><td>1</td><td>read is paired</td><td>64</td><td>first read of the pair</td></tr>
+    <tr><td>2</td><td>pair mapped properly (right distance and orientation)</td><td>128</td><td>second read of the pair</td></tr>
+    <tr><td>4</td><td>read unmapped</td><td>256</td><td>secondary alignment</td></tr>
+    <tr><td>8</td><td>mate unmapped</td><td>1024</td><td>PCR or optical duplicate</td></tr>
+    <tr><td>16</td><td>read on the reverse strand</td><td>2048</td><td>supplementary (part of a split read)</td></tr>
+    <tr><td>32</td><td>mate on the reverse strand</td><td></td><td></td></tr>
+  </table>
+  <div class="q" data-q="a-flag" data-accept="(?=.*\b64\b)(?=.*\b32\b)(?=.*\b2\b)(?=.*\b1\b)||(?=.*pair)(?=.*proper)(?=.*(mate|32))(?=.*first)" data-hint="write the FLAG as a sum of the bits in the table, e.g. 64+32+2+1">
+    <div class="q-text">The first alignment line has FLAG <b>99</b>. Break it into bits: which bits are set?</div>
+    <div class="q-model"><p><b>99 = 64 + 32 + 2 + 1</b>: the read is paired (1), in a proper pair (2), its mate is on the reverse strand (32) and it is the first read of the pair (64). Its mate, on the next line, has FLAG <b>147 = 128 + 16 + 2 + 1</b>: second read, on the reverse strand, proper pair. The two reads face each other, as a properly paired fragment should.</p></div>
+  </div>
+
+  <h2 id="al-flagstat">3.5 How well did it map?</h2>
+  <div class="activity">
+    <div class="act-t">Activity 3.5 · samtools flagstat</div>
+    <ol class="steps">
+      <li data-task="a-flagstat" data-auto="term:command line~flagstat code=0">Summarise the alignments by their flags: <code>samtools flagstat results/aligned.sam</code> <button class="do showme" type="button" data-term="samtools flagstat results/aligned.sam">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="a-mapped" data-accept="98[.,]8||98[.,]9||\b99\s*%" data-hint="the % on the “mapped” line">
+    <div class="q-text">What percentage of the reads mapped?</div>
+    <div class="q-model"><p><b>98.85%</b>. 97.38% were <b>properly paired</b>: both reads mapped to the same chromosome, facing each other, a sensible distance apart. The total (306,496) is a little more than the 306,360 reads because a read split across two places counts once more as a <b>supplementary</b> alignment (136 here).</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     4 · SORT, INDEX, SUMMARISE
+     ===================================================================== -->
+<section class="chapter" id="bam" data-num="4" data-title="Sort &amp; index" data-bench="terminal" hidden>
+  <h1>Sort, index and summarise</h1>
+  <div class="meta-row"><span class="pill time">≈ 15 min</span><span class="pill">Workbench: Terminal</span></div>
+  <p class="lede">The SAM file lists the reads in the order they came off the sequencer. To look at – or call variants in – one region, programs need the reads <b>sorted by position</b>, stored compactly as <b>BAM</b> (binary, compressed SAM), and <b>indexed</b> (a <code>.bai</code> file that says where in the BAM each region starts).</p>
+  <div class="activity">
+    <div class="act-t">Activity 4.1 · Make a sorted, indexed BAM</div>
+    <ol class="steps">
+      <li data-task="b-sort" data-check="sortedBam">Sort by position and write BAM: <code>samtools sort -o results/aligned.sorted.bam results/aligned.sam</code> <button class="do showme" type="button" data-term="samtools sort -o results/aligned.sorted.bam results/aligned.sam">show me</button></li>
+      <li data-task="b-index" data-check="baiMade">Index it: <code>samtools index results/aligned.sorted.bam</code> – this runs the real samtools in your browser. <button class="do showme" type="button" data-term="samtools index results/aligned.sorted.bam">show me</button></li>
+      <li data-task="b-ls" data-auto="term:command line~ls -l code=0 line~results">Compare the sizes: <code>ls -lh results</code> <button class="do showme" type="button" data-term="ls -lh results">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="b-size">
+    <div class="q-text">How big are the SAM and the BAM files? Why do we keep BAM rather than SAM?</div>
+    <div class="q-model"><p>SAM ≈ <b>77 MB</b>, sorted BAM ≈ <b>22 MB</b> – about 3.5 times smaller. BAM is compressed binary (blocks of gzip, “BGZF”), so it is smaller and faster to read, and – once sorted and indexed – programs can jump straight to any region instead of reading the whole file. A full human exome BAM is typically 5–15 GB; the SAM would be several times larger.</p></div>
+  </div>
+  <div class="optional">
+    <h3>Try this <span class="pill ext">Extension</span></h3>
+    <p>What happens if you do the steps in the wrong order? Try <code>samtools index results/aligned.sam</code> and read the error. Error messages are clues, not failures.</p>
+  </div>
+
+  <h2 id="b-idxstats">4.2 Where did the reads go?</h2>
+  <div class="activity">
+    <div class="act-t">Activity 4.2 · samtools idxstats</div>
+    <ol class="steps">
+      <li data-task="b-idxstats" data-auto="term:command line~idxstats code=0">Count the reads on each chromosome (this uses the index): <code>samtools idxstats results/aligned.sorted.bam</code>. The columns are: name, length, mapped reads, unmapped reads. <button class="do showme" type="button" data-term="samtools idxstats results/aligned.sorted.bam">show me</button></li>
+      <li data-task="b-sortk" data-auto="term:command line~sort -k code=0">Too long to read? Sort by the third column, biggest first, and keep the top 5: <code>samtools idxstats results/aligned.sorted.bam | sort -k3,3nr | head -n 5</code> <button class="do showme" type="button" data-term="samtools idxstats results/aligned.sorted.bam | sort -k3,3nr | head -n 5">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="b-chr10" data-accept="300[, ]?965" data-hint="the third column of the chr10 line">
+    <div class="q-text">How many reads mapped to chr10?</div>
+    <div class="q-model"><p><b>300,965</b> – 99.3% of the mapped reads.</p></div>
+  </div>
+  <div class="q" data-q="b-other">
+    <div class="q-text">These reads were chosen because they came from chromosome 10. Why have some mapped to other chromosomes?</div>
+    <div class="q-model"><p>About 2,000 reads (0.7% of the mapped reads) landed elsewhere – a few dozen to a couple of hundred per chromosome. 3,516 reads did not map at all: most are listed beside their mapped mate (idxstats' last column), and 390 from pairs where neither read mapped are on the <code>*</code> line. The reads were chosen because the 1000 Genomes pipeline had placed them in chr10:95–98 Mb, but a short read that matches several places equally or almost equally well (repeats such as Alu and LINE elements, pseudogenes, related genes) can be placed differently by another aligner version or reference build. Most of these reads have low mapping quality, and very few pass the depth filter when variants are called. With a whole exome, the same effect spreads a few reads from every gene across the genome.</p></div>
+  </div>
+
+  <h2 id="b-region">4.3 One position</h2>
+  <p>With an index, samtools can pull out just the reads covering a region, written <code>chromosome:start-end</code>.</p>
+  <div class="activity">
+    <div class="act-t">Activity 4.3 · Reads at the <i>CYP2C19*2</i> position</div>
+    <ol class="steps">
+      <li data-task="b-count" data-auto="term:command line~view -c code=0">Count the reads that cover chr10:96,541,616: <code>samtools view -c results/aligned.sorted.bam chr10:96541616-96541616</code> <button class="do showme" type="button" data-term="samtools view -c results/aligned.sorted.bam chr10:96541616-96541616">show me</button></li>
+      <li data-task="b-view" data-auto="term:command line~samtools view code=0 line~head">Look at two of them: <code>samtools view results/aligned.sorted.bam chr10:96541616-96541616 | head -n 2</code> <button class="do showme" type="button" data-term="samtools view results/aligned.sorted.bam chr10:96541616-96541616 | head -n 2">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="b-depth" data-accept="\b109\b" data-hint="the number samtools view -c printed">
+    <div class="q-text">How many reads cover chr10:96,541,616?</div>
+    <div class="q-model"><p><b>109</b> alignments overlap that base. That is deep coverage – plenty to call a genotype confidently. (The variant caller will count a few less – chapter 6 explains why.)</p></div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     5 · CALLING VARIANTS
+     ===================================================================== -->
+<section class="chapter" id="call" data-num="5" data-title="Calling variants" data-bench="terminal" hidden>
+  <h1>Calling variants</h1>
+  <div class="meta-row"><span class="pill time">≈ 25 min</span><span class="pill">Workbench: Terminal</span></div>
+  <p class="lede">At every position, the reads either agree with the reference or show another base. A <b>variant caller</b> weighs that evidence – how many reads, how good their bases and mappings are – and decides the most likely <b>genotype</b>: two copies of the reference allele (0/0), one of each (0/1, heterozygous) or two copies of the other allele (1/1, homozygous).</p>
+  <div class="callout info">
+    <div class="co-t">Two steps in bcftools</div>
+    <p><b>bcftools mpileup</b> “piles up” the reads at every covered position and computes <b>genotype likelihoods</b>: how probable the reads would be if the genotype were 0/0, 0/1 or 1/1. <b>bcftools call</b> combines those likelihoods with a prior and reports the variant sites and their most likely genotypes. Because the pile-up has a line for every covered base (millions), it is piped straight into <code>call</code> rather than saved.</p>
+  </div>
+
+  <h2 id="v-run">5.1 Run the caller</h2>
+  <div class="activity">
+    <div class="act-t">Activity 5.1 · mpileup | call</div>
+    <ol class="steps">
+      <li data-task="v-peek" data-auto="term:command line~mpileup code=0 line~-r">First, peek at the pile-up for five bases around the <i>CYP2C19*2</i> position: <code>bcftools mpileup -a AD,DP -f ref/hg19.fa -r chr10:96541614-96541618 results/aligned.sorted.bam | grep -v '^##'</code>. Look at the line for 96541616: the ALT column offers <code>A</code> and the AD tag counts the reads for each allele. <button class="do showme" type="button" data-term="bcftools mpileup -a AD,DP -f ref/hg19.fa -r chr10:96541614-96541618 results/aligned.sorted.bam | grep -v '^##'">show me</button></li>
+      <li data-task="v-call" data-check="vcfMade">Now call variants across all the reads (about a minute in the browser): <code>bcftools mpileup -Ou -a AD,DP -f ref/hg19.fa results/aligned.sorted.bam | bcftools call -mv -Ov -o results/calls.vcf</code> <button class="do showme" type="button" data-term="bcftools mpileup -Ou -a AD,DP -f ref/hg19.fa results/aligned.sorted.bam | bcftools call -mv -Ov -o results/calls.vcf">show me</button></li>
+    </ol>
+  </div>
+  <table class="table small">
+    <tr><th>Option</th><th>Meaning</th></tr>
+    <tr><td><code>-f ref/hg19.fa</code></td><td>the reference, to know what base is expected at each position</td></tr>
+    <tr><td><code>-a AD,DP</code></td><td>also report, for each sample, the number of reads supporting each allele (AD) and the depth (DP)</td></tr>
+    <tr><td><code>-Ou</code></td><td>output uncompressed BCF (binary VCF) – fastest for passing to the next program</td></tr>
+    <tr><td><code>-m</code></td><td>the multiallelic calling model (recommended; you must choose it or the older <code>-c</code> model)</td></tr>
+    <tr><td><code>-v</code></td><td>output variant sites only (not every position)</td></tr>
+    <tr><td><code>-Ov -o FILE</code></td><td>write uncompressed VCF to FILE</td></tr>
+  </table>
+
+  <h2 id="v-vcf">5.2 Reading a VCF file</h2>
+  <div class="activity">
+    <div class="act-t">Activity 5.2 · Inside calls.vcf</div>
+    <ol class="steps">
+      <li data-task="v-header" data-auto="term:command line~calls.vcf code=0 line~##">The header lines start with <code>##</code> and describe every field; skip them to see the column names and the first records: <code>grep -v '^##' results/calls.vcf | head -n 4</code> <button class="do showme" type="button" data-term="grep -v '^##' results/calls.vcf | head -n 4">show me</button></li>
+      <li data-task="v-count" data-auto="term:command line~grep -c -v code=0">Count the variants (every line that does not start with <code>#</code>): <code>grep -c -v '^#' results/calls.vcf</code> <button class="do showme" type="button" data-term="grep -c -v '^#' results/calls.vcf">show me</button></li>
+      <li data-task="v-hdr2" data-auto="term:command line~##format code=0">What do the FORMAT fields mean? <code>grep '^##FORMAT' results/calls.vcf</code> <button class="do showme" type="button" data-term="grep '^##FORMAT' results/calls.vcf">show me</button></li>
+    </ol>
+  </div>
+  <table class="table small">
+    <tr><th>Column</th><th>Meaning</th></tr>
+    <tr><td>CHROM, POS</td><td>Where (1-based position of the first REF base)</td></tr>
+    <tr><td>ID</td><td>A database identifier such as an rs number, if added (<code>.</code> = none)</td></tr>
+    <tr><td>REF, ALT</td><td>Reference allele and alternative allele(s)</td></tr>
+    <tr><td>QUAL</td><td>Phred-scaled confidence that the site is truly variant (QUAL 30 = 1 in 1,000 chance it is not)</td></tr>
+    <tr><td>FILTER</td><td><code>PASS</code>, <code>.</code> (not filtered), or the name of a filter the site failed</td></tr>
+    <tr><td>INFO</td><td>Site information, e.g. <code>DP</code> (read depth), <code>MQ</code> (mapping quality)</td></tr>
+    <tr><td>FORMAT + sample</td><td>Per-sample fields named by FORMAT: <code>GT</code> genotype, <code>PL</code> genotype likelihoods, <code>DP</code> depth, <code>AD</code> reads per allele</td></tr>
+  </table>
+  <div class="q" data-q="v-raw" data-accept="\b2[, ]?744\b" data-hint="the number printed by grep -c -v '^#'">
+    <div class="q-text">How many variants did bcftools call?</div>
+    <div class="q-model"><p><b>2,744</b>. That is far more than the region's exons could hold – many are unreliable calls from a handful of reads. Next we filter.</p></div>
+  </div>
+
+  <h2 id="v-filter">5.3 Filter the calls</h2>
+  <p>A raw call set always contains false positives: calls made from one or two reads, calls in reads that map badly, sequencing or PCR errors. The simplest filters require a minimum <b>call quality</b> and <b>read depth</b>.</p>
+  <div class="activity">
+    <div class="act-t">Activity 5.3 · Keep the confident calls</div>
+    <ol class="steps">
+      <li data-task="v-filt" data-check="exists:results/calls.filtered.vcf">Keep calls with QUAL ≥ 30 and at least 10 reads: <code>bcftools view -i 'QUAL>=30 &amp;&amp; INFO/DP>=10' results/calls.vcf &gt; results/calls.filtered.vcf</code> <button class="do showme" type="button" data-term="bcftools view -i 'QUAL>=30 && INFO/DP>=10' results/calls.vcf > results/calls.filtered.vcf">show me</button></li>
+      <li data-task="v-count2" data-auto="term:command line~filtered.vcf code=0 line~-c">Count what is left (<span class="kbd">↑</span> and edit the earlier grep). <button class="do showme" type="button" data-term="grep -c -v '^#' results/calls.filtered.vcf">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="v-filt-n" data-accept="\b218\b" data-hint="run grep -c -v '^#' on the filtered file">
+    <div class="q-text">How many variants pass the filter?</div>
+    <div class="q-model"><p><b>218</b> of 2,744 (8%). Most of the removed calls had fewer than 10 reads: exome capture pulls down the exons strongly, but some reads come from off-target DNA around them, where coverage is thin.</p></div>
+  </div>
+  <div class="q" data-q="v-filt-why">
+    <div class="q-text">Filtering is a trade-off. What do you lose by making the thresholds stricter (say QUAL ≥ 100 and DP ≥ 30)? When might you accept that?</div>
+    <div class="q-model"><p>Stricter filters remove more false positives but also more <b>true</b> variants (lower sensitivity) – especially in regions with low coverage, which in an exome include the ends of exons and GC-rich exons. For a diagnostic search you usually want high sensitivity and then check candidates by eye (IGV) or by another method (Sanger sequencing); for a large research set you may prefer high specificity. The filter thresholds are part of your methods and must be reported.</p></div>
+  </div>
+
+  <h2 id="v-find">5.4 Find <i>CYP2C19*2</i></h2>
+  <div class="activity">
+    <div class="act-t">Activity 5.4 · The answer to the question</div>
+    <ol class="steps">
+      <li data-task="v-find" data-auto="term:command line~96541616 code=0 name=grep">Search the filtered calls for the position: <code>grep -w 96541616 results/calls.filtered.vcf</code> (<code>-w</code>: whole word) <button class="do showme" type="button" data-term="grep -w 96541616 results/calls.filtered.vcf">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="v-gt" data-accept="(0/1|het).*(g.*a|44.*48)||(g.*a|44.*48).*(0/1|het)" data-hint="give the genotype (GT) and the alleles, e.g. “0/1, G>A”">
+    <div class="q-text">What are the REF and ALT alleles, and the genotype (GT)? How many reads support each allele (AD)?</div>
+    <div class="q-model"><p>REF <b>G</b>, ALT <b>A</b>, GT <b>0/1</b> – heterozygous. AD = <b>44,48</b>: 44 reads carry G and 48 carry A, close to the 50:50 expected for a heterozygote. QUAL is 222 – as high as bcftools usually goes (confident calls top out around 220–230). NA12878 carries <b>one copy</b> of <i>CYP2C19*2</i>.</p></div>
+  </div>
+  <div class="q" data-q="v-pheno">
+    <div class="q-text">One copy of a no-function allele: what would you predict for NA12878's clopidogrel response? What else would you want to check before saying so in a report?</div>
+    <div class="q-model"><p>With one no-function allele she is most likely a CYP2C19 <b>intermediate metaboliser</b> (e.g. <i>*1/*2</i>): less active metabolite, weaker platelet inhibition; CPIC advises an alternative (prasugrel or ticagrelor) after ACS/PCI if there is no contraindication. Before reporting you would check: the call in the reads (IGV); other <i>CYP2C19</i> alleles – e.g. <i>*3</i>, and the increased-function <i>*17</i> in the promoter, which an exome may not cover (no call is not the same as a reference genotype); and ideally confirm with an independent method. The next practical works through this.</p></div>
+  </div>
+
+  <div class="optional">
+    <h2 id="v-more">Extension: a neat table, and a second caller <span class="pill ext">Extension</span></h2>
+    <div class="activity">
+      <div class="act-t">Activity 5.5 · bcftools query and FreeBayes</div>
+      <ol class="steps">
+        <li data-task="v-query" data-auto="term:command line~bcftools query code=0"><code>bcftools query</code> prints chosen fields: <code>bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%QUAL\t[%GT\t%AD]\n' results/calls.filtered.vcf | head</code> <button class="do showme" type="button" data-term="bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%QUAL\t[%GT\t%AD]\n' results/calls.filtered.vcf | head">show me</button></li>
+        <li data-task="v-fb" data-auto="term:command name=freebayes code=0">The original version of this practical used <b>FreeBayes</b>, a haplotype-based caller. Run it: <code>freebayes -f ref/hg19.fa results/aligned.sorted.bam &gt; results/freebayes.vcf</code>, count the calls, and look for 96541616. <button class="do showme" type="button" data-term="freebayes -f ref/hg19.fa results/aligned.sorted.bam > results/freebayes.vcf">show me</button></li>
+      </ol>
+    </div>
+    <div class="q" data-q="v-fb-q">
+      <div class="q-text">Do the two callers agree about <i>CYP2C19*2</i>? Do they find the same number of variants? Why might they differ?</div>
+      <div class="q-model"><p>Both call chr10:96541616 G&gt;A as heterozygous. FreeBayes with default settings reports 4,142 sites – it reports almost any candidate and leaves filtering to you; with <code>--standard-filters --min-coverage 10</code> (Galaxy's “simple diploid calling with filtering and coverage”) it reports 268. The callers use different models (bcftools: per-position genotype likelihoods; FreeBayes: short haplotypes, so neighbouring variants and indels are described differently) and different default read and base filters, so call sets differ mostly at low-coverage and messy sites. Pipelines are usually compared on a truth set – for NA12878, the Genome in a Bottle benchmark calls.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     6 · SEE IT IN IGV
+     ===================================================================== -->
+<section class="chapter" id="igv" data-num="6" data-title="See it in IGV" data-bench="igv" hidden>
+  <h1>See it in the genome browser</h1>
+  <div class="meta-row"><span class="pill time">≈ 15 min</span><span class="pill">Workbench: IGV</span></div>
+  <p class="lede">Never trust a variant call you have not looked at. The <b>Integrative Genomics Viewer (IGV)</b> shows the reads stacked against the reference so you can judge the evidence yourself – this is the same igv.js used by the web version of IGV at igv.org.</p>
+  <div class="activity">
+    <div class="act-t">Activity 6.1 · Load your files</div>
+    <ol class="steps">
+      <li data-task="i-load" data-check="igvTrack:aligned">Load your BAM and filtered VCF and go to the variant – from the terminal: <code>igv results/aligned.sorted.bam results/calls.filtered.vcf chr10:96,541,616</code> <button class="do showme" type="button" data-term="igv results/aligned.sorted.bam results/calls.filtered.vcf chr10:96,541,616">show me</button> or with this button: <button class="do" type="button" data-igv-load="results/aligned.sorted.bam,results/calls.filtered.vcf">load my files</button></li>
+      <li data-task="i-goto" data-check="igvAt:96541616">If you are not there yet, type <code>chr10:96,541,616</code> in IGV's search box and press <span class="kbd">Enter</span>. <button class="do showme" type="button" data-igv="chr10:96,541,616">show me</button></li>
+    </ol>
+  </div>
+  <p>From top to bottom you see: the chromosome ideogram, your <b>VCF</b> (one mark per variant), the <b>coverage</b> track (read depth – a bar is coloured where many reads disagree with the reference), the <b>reads</b> (coloured by strand; mismatching bases are coloured letters), the <b>reference sequence</b> and the <b>RefSeq genes</b>.</p>
+  <div class="activity">
+    <div class="act-t">Activity 6.2 · Weigh the evidence</div>
+    <ol class="steps">
+      <li data-task="i-cov">Click the coverage bar at the centre line. The pop-up gives the total depth and the count of each base.</li>
+      <li data-task="i-var">Click the variant in the VCF track to see its QUAL, genotype and AD.</li>
+      <li data-task="i-strand">Are the A bases on reads from both strands (both colours)? Are there reads with MAPQ 0 (drawn faint)? Anything else suspicious – nearby clusters of mismatches, soft-clipped ends?</li>
+    </ol>
+  </div>
+  <div class="q" data-q="i-counts">
+    <div class="q-text">What counts does IGV give for G and A? Why might they differ slightly from the AD in your VCF?</div>
+    <div class="q-model"><p>IGV shows about 51 G and 58 A (all reads). bcftools counted 44 and 48 because it ignores bases with quality below 13, judged after two adjustments: where both reads of a fragment cover the position (9 fragments here) it counts that DNA molecule only once, and its BAQ step lowers the quality of bases that might be misaligned. (Add <code>-Q 0</code> to <code>bcftools mpileup</code> and it also reports 51 and 58.) The two views agree on what matters: roughly half the reads carry A, on both strands, in well-mapped reads – a clean heterozygous call.</p></div>
+  </div>
+  <div class="activity">
+    <div class="act-t">Activity 6.3 · Which codon?</div>
+    <ol class="steps">
+      <li data-task="i-gene">Zoom out a little (−) to see where you are in <i>CYP2C19</i>. The small arrows on the gene show the direction of transcription. Which exon is it?</li>
+      <li data-task="i-codon">Zoom right in until the amino acids appear under the exon (letters in alternating shades). Hover over the amino acid at the centre line to see its number.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="i-aa" data-accept="(pro|proline|\bp\b).*227||227.*(pro|proline|\bp\b)" data-hint="give the amino acid and its number, e.g. Ala123">
+    <div class="q-text">Which amino acid is encoded at the variant, and what is its number?</div>
+    <div class="q-model"><p><b>Proline 227</b> (P227), near the start of <b>exon 5</b>. <i>CYP2C19</i> is on the plus strand here (transcribed left to right), so you read the codon directly: CC<b>G</b> → CC<b>A</b>. Both codons encode proline – the change is <b>synonymous</b>.</p></div>
+  </div>
+  <div class="q" data-q="i-syn" data-type="mcq">
+    <div class="q-text">The change does not alter the amino acid – yet <i>CYP2C19*2</i> makes no working enzyme. Which is the most likely explanation?</div>
+    <div class="mcq">
+      <label data-why="Codon usage can affect translation speed slightly, but not enough to abolish an enzyme."><input type="radio"> Proline is translated more slowly from CCA than from CCG</label>
+      <label data-correct data-why="Yes. The G>A change creates a new AG splice acceptor just inside exon 5: the mRNA loses the first 40 bases of the exon, the reading frame shifts and a stop codon follows soon after. You will look at this properly in the next practical."><input type="radio"> It changes how the mRNA is spliced</label>
+      <label data-why="There is no reason to think it is a sequencing error: deep coverage, both strands, good mapping – and the allele is common."><input type="radio"> The call is a sequencing error</label>
+    </div>
+  </div>
+  <div class="activity">
+    <div class="act-t">Activity 6.4 · A figure for your report</div>
+    <ol class="steps">
+      <li data-task="i-img" data-auto="igv:image">Frame a clear view of the variant (zoomed in, variant centred) and press <b>Save image</b> above the browser. Figures like this, with a clear legend, are expected in your coursework.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- =====================================================================
+     7 · WORKFLOW ENGINE
+     ===================================================================== -->
+<section class="chapter" id="workflow" data-num="7" data-title="Workflow engine" data-bench="galaxy" hidden>
+  <h1>The same analysis in a workflow engine</h1>
+  <div class="meta-row"><span class="pill time">≈ 30 min</span><span class="pill">Workbench: Workflow engine</span></div>
+  <p class="lede">A <b>workflow engine</b> runs a chain of tools for you and records exactly what was done. <b>Galaxy</b> (usegalaxy.eu, usegalaxy.org) does this through a web page: you pick tools from menus instead of typing, every result is kept in a <b>history</b>, and a sequence of steps can be saved as a <b>workflow</b> and re-run on new data with one click. Research groups also use code-based workflow managers such as <b>Nextflow</b> and <b>Snakemake</b>, where the workflow is a script. The engine on this page is a small Galaxy look-alike that runs the same programs as your terminal.</p>
+
+  <h2 id="w-tour">7.1 A tour</h2>
+  <div class="activity">
+    <div class="act-t">Activity 7.1 · Find your way around</div>
+    <ol class="steps">
+      <li data-task="w-open" data-auto="app:bench name=galaxy">Open the <b>Workflow engine</b> tab. <button class="do showme" type="button" data-gx="home">show me</button> (The tutorial panel narrows to make room – drag the divider to change it.)</li>
+      <li data-task="w-hist">The <b>history</b> (right) already holds the two FASTQ files, imported from the course data library. Click a dataset's name to expand it, and its <b>eye</b> icon to view it.</li>
+      <li data-task="w-tools">The <b>tools</b> (left) are grouped by job; type in the search box to find one.</li>
+    </ol>
+  </div>
+
+  <h2 id="w-tool">7.2 Run one tool</h2>
+  <div class="activity">
+    <div class="act-t">Activity 7.2 · FastQC, the Galaxy way</div>
+    <ol class="steps">
+      <li data-task="w-fqform" data-auto="gx:toolform tool=fastqc">Click <b>FastQC</b> in the tool panel. <button class="do showme" type="button" data-gx="tool:fastqc">show me</button></li>
+      <li data-task="w-fqrun" data-auto="gx:job tool=fastqc state=ok">Choose dataset 1 (the R1 reads) and press <b>Run tool</b>. Watch the new datasets in the history: <span class="gx-chip queued">grey = queued</span>, <span class="gx-chip running">yellow = running</span>, <span class="gx-chip ok">green = done</span>.</li>
+      <li data-task="w-fqview" data-auto="gx:view ext=html">Click the eye icon of the <b>Webpage</b> output – it opens in the Report tab, the same report you made in the terminal.</li>
+      <li data-task="w-details" data-auto="gx:details tool=fastqc">Click the <b>ⓘ</b> (dataset details) icon of the same output. Scroll to <b>Command line</b>.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="w-cmd">
+    <div class="q-text">Compare Galaxy's command line with the one you typed in chapter 2. What is the same? What did Galaxy add, and why?</div>
+    <div class="q-model"><p>The core is the same program: <code>fastqc</code> on the same file. Galaxy first <b>links</b> the dataset into a job folder under a readable name (<code>ln -s …dataset_1.dat NA12878_chr10_R1.fastq.gz</code>), then adds options for running unattended on a server: <code>--outdir .</code>, <code>--threads</code> (the processors it was given), <code>--quiet</code>, <code>--extract</code> (unzip the results so the raw data can become a second output) and <code>-f fastq</code> (don't guess the format from the name). Finally it copies the outputs to the dataset files shown in the history. Every result in Galaxy carries this record – its <b>provenance</b>.</p></div>
+  </div>
+
+  <h2 id="w-wf">7.3 Finish the workflow</h2>
+  <p>Your lecturer has shared a workflow that chains the steps of chapters 2–5 – but it stops at <b>bcftools call</b>: the filtering step is missing.</p>
+  <div class="activity">
+    <div class="act-t">Activity 7.3 · Edit the workflow</div>
+    <ol class="steps">
+      <li data-task="w-list" data-auto="gx:workflows">Click <b>Workflows</b> in the top bar of the engine. <button class="do showme" type="button" data-gx="workflows">show me</button></li>
+      <li data-task="w-edit" data-auto="gx:editor">Press <b>Edit</b> on “Reads to variants (bcftools)”. Each box is a step; each wire carries a dataset from an output (right) to an input (left). The small labels show the data types. Click a step to see its settings on the right.</li>
+      <li data-task="w-add" data-auto="gx:added tool=bcftools_view">With the editor open, click <b>bcftools view</b> in the tool panel to add it.</li>
+      <li data-task="w-bad" data-auto="gx:badwire">Try connecting the wrong thing: drag from FastQC's <b>Webpage</b> (html) output to bcftools view's input. What happens?</li>
+      <li data-task="w-wire" data-auto="gx:wire to=bcftools_view">Now drag from <b>bcftools call</b>'s vcf output to <b>bcftools view</b>'s input.</li>
+      <li data-task="w-param">Click the bcftools view step and check its <b>Include</b> expression: <code>QUAL&gt;=30 &amp;&amp; INFO/DP&gt;=10</code> – the same filter you used on the command line.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="w-types">
+    <div class="q-text">Why did the engine refuse the first connection? How does this help you?</div>
+    <div class="q-model"><p>Every dataset has a <b>type</b> (fastqsanger.gz, bam, bcf, vcf, html…) and every tool input accepts only certain types. An HTML report cannot be filtered as a VCF, so the connection is refused. Type checking catches mistakes when you build the workflow, not hours later when a job fails – one of the safety nets a workflow engine gives you (on the command line nothing stops you from giving a program the wrong file).</p></div>
+  </div>
+
+  <h2 id="w-run">7.4 Run it</h2>
+  <div class="activity">
+    <div class="act-t">Activity 7.4 · One click, eight jobs</div>
+    <ol class="steps">
+      <li data-task="w-run" data-auto="gx:invoked">Press <b>Run</b> (in the editor, or on the Workflows list). Check that the forward reads input is the R1 dataset and the reverse reads is R2, then press <b>Run workflow</b>.</li>
+      <li data-task="w-done" data-auto="gx:invocation ok=true">Watch the history fill up. The mpileup step reads the whole BAM file, so give it a minute or two.</li>
+      <li data-task="w-vcf" data-auto="gx:view ext=vcf">Open (eye) the final VCF from <b>bcftools view</b>. How many variants does its history entry report?</li>
+      <li data-task="w-igv" data-auto="gx:igv ext=vcf">Click <b>display with IGV</b> on it, and go to <code>chr10:96,541,616</code>.</li>
+      <li data-task="w-prov" data-auto="gx:details tool=bcftools_view">Open the ⓘ details of the final VCF – the command line, parameters and input datasets are all recorded.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="w-same" data-accept="\b218\b||same||identical" data-hint="compare with your answer in 5.3">
+    <div class="q-text">How many variants are in the workflow's filtered VCF – the same as your command-line result? Why?</div>
+    <div class="q-model"><p><b>218</b> – identical, because the workflow ran the same programs, with the same versions, on the same data and reference, with the same parameters. The only difference is that Galaxy's BWA-MEM step pipes straight into <code>samtools sort</code> (no SAM file is kept), which does not change the alignments. (One subtlety: Galaxy runs BWA-MEM with two threads. BWA-MEM reads its input in batches whose size depends on the number of threads and estimates the insert size batch by batch, so on a real server a handful of alignments can differ between thread counts unless the batch size is fixed with <code>-K</code>. Here the engine re-uses the terminal's alignments, so they match exactly.) Same inputs + same tools + same parameters = same result: that is reproducibility – and a workflow engine records all three for you.</p></div>
+  </div>
+  <div class="optional">
+    <h3>Extension: add a second caller <span class="pill ext">Extension</span></h3>
+    <p>Add <b>FreeBayes</b> to the workflow, connect it to the BWA-MEM BAM output, run the workflow again and compare the two VCFs in IGV. Which differences do you see near <i>CYP2C19</i>?</p>
+  </div>
+</section>
+
+<!-- =====================================================================
+     8 · COMPARE
+     ===================================================================== -->
+<section class="chapter" id="compare" data-num="8" data-title="Which is better?" data-bench="terminal" hidden>
+  <h1>Command line or workflow engine?</h1>
+  <div class="meta-row"><span class="pill time">≈ 10 min</span></div>
+  <p class="lede">You have now run the same pipeline twice. Both are used in real laboratories – often side by side.</p>
+  <table class="compare">
+    <tr><th></th><th>Command line</th><th>Workflow engine (Galaxy)</th></tr>
+    <tr><th>Getting started</th><td>Steeper: commands, options and file names must be exact</td><td>Gentle: forms, menus and sensible defaults</td></tr>
+    <tr><th>Record of what was done</th><td>Only if you keep it: shell history, scripts, notes</td><td>Automatic: every dataset keeps its tool, version, parameters and inputs</td></tr>
+    <tr><th>Re-running on new data</th><td>Write a script (or a Nextflow/Snakemake pipeline)</td><td>Run the saved workflow on a new history</td></tr>
+    <tr><th>Flexibility</th><td>Any tool, any option, any combination; easy to automate and loop</td><td>The tools and options installed on that server</td></tr>
+    <tr><th>Computing power</th><td>Your own machine or cluster – you install and manage the software</td><td>The server's – shared, with queues and storage quotas</td></tr>
+    <tr><th>Data</th><td>Stays where you put it</td><td>Uploaded to the server – check the rules for patient data</td></tr>
+    <tr><th>Checking your work</th><td>Nothing stops a wrong file or option</td><td>Typed connections catch some mistakes</td></tr>
+  </table>
+  <h2 id="cmp-script">Your history is a script</h2>
+  <p>Type <code>history</code> in the terminal. The commands that worked, in order, <i>are</i> your pipeline. Saved in a file they become a script that anyone can re-run:</p>
+  <pre class="cmd-block">#!/bin/bash
+# reads-to-variants.sh – NA12878, CYP2C region, hg19
+set -euo pipefail
+fastqc -o results data/NA12878_chr10_R1.fastq.gz data/NA12878_chr10_R2.fastq.gz
+bwa mem ref/hg19.fa data/NA12878_chr10_R1.fastq.gz data/NA12878_chr10_R2.fastq.gz &gt; results/aligned.sam
+samtools sort -o results/aligned.sorted.bam results/aligned.sam
+samtools index results/aligned.sorted.bam
+bcftools mpileup -Ou -a AD,DP -f ref/hg19.fa results/aligned.sorted.bam | bcftools call -mv -Ov -o results/calls.vcf
+bcftools view -i 'QUAL&gt;=30 &amp;&amp; INFO/DP&gt;=10' results/calls.vcf &gt; results/calls.filtered.vcf</pre>
+  <div class="activity">
+    <div class="act-t">Activity 8.1 · Reflect</div>
+    <ol class="steps">
+      <li data-task="cmp-hist" data-auto="term:command name=history">Type <code>history</code> and compare it with the script above. <button class="do showme" type="button" data-term="history">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="cmp-choice">
+    <div class="q-text">A clinical lab must analyse 200 exomes a month and show an inspector exactly how every result was produced. A PhD student wants to try five aligners with different settings on one sample. Which approach suits each, and why?</div>
+    <div class="q-model"><p><b>Clinical lab:</b> a fixed, validated, version-controlled pipeline run by a workflow system (Galaxy, or Nextflow/Snakemake on a cluster) – automatic provenance, the same steps every time, easy to audit, scales to many samples. <b>PhD student:</b> the command line (or a notebook/script) – maximum flexibility to change tools and options quickly; once the best combination is found, it can be captured in a script or workflow. Both need records: a lab's standard operating procedure, a student's scripts and notes.</p></div>
+  </div>
+
+  <h2 id="quiz">Check your understanding</h2>
+  <div class="q" data-q="z-phred" data-type="mcq">
+    <div class="q-text">A base has Phred quality 30. The chance it is wrong is…</div>
+    <div class="mcq">
+      <label data-why="That is Q10."><input type="radio"> 1 in 10</label>
+      <label data-why="That is Q20."><input type="radio"> 1 in 100</label>
+      <label data-correct data-why="Q = −10 log10(p) → p = 10^(−30/10) = 0.001."><input type="radio"> 1 in 1,000</label>
+      <label data-why="That is Q40."><input type="radio"> 1 in 10,000</label>
+    </div>
+  </div>
+  <div class="q" data-q="z-order" data-type="mcq">
+    <div class="q-text">Which order is right?</div>
+    <div class="mcq">
+      <label data-why="You cannot index before sorting, and calling needs an indexed, sorted BAM."><input type="radio"> align → index → sort → call</label>
+      <label data-correct data-why="Align (SAM), sort (BAM), index (.bai), then call variants from the sorted, indexed BAM."><input type="radio"> align → sort → index → call</label>
+      <label data-why="Variants are called from aligned reads, not raw FASTQ."><input type="radio"> call → align → sort → index</label>
+    </div>
+  </div>
+  <div class="q" data-q="z-bai" data-type="mcq">
+    <div class="q-text">You email a colleague <code>aligned.sorted.bam</code> but IGV on their computer refuses to show it. What did you forget?</div>
+    <div class="mcq">
+      <label data-correct data-why="IGV needs the index to jump to a region: always keep the .bam and .bai together (same folder, matching names)."><input type="radio"> The index file, <code>aligned.sorted.bam.bai</code></label>
+      <label data-why="IGV reads BAM directly; it does not need the SAM."><input type="radio"> The SAM file</label>
+      <label data-why="IGV has its own copy of hg19 – though the colleague must choose hg19, not hg38."><input type="radio"> The reference genome</label>
+    </div>
+  </div>
+  <div class="q" data-q="z-gt" data-type="mcq">
+    <div class="q-text">A VCF line shows <code>GT:PL:DP:AD  1/1:230,60,0:20:0,20</code>. The person is…</div>
+    <div class="mcq">
+      <label data-why="0/1 would be heterozygous, with reads for both alleles."><input type="radio"> heterozygous</label>
+      <label data-correct data-why="GT 1/1 and all 20 reads show the ALT allele (AD 0,20); the most likely genotype has PL 0."><input type="radio"> homozygous for the ALT allele</label>
+      <label data-why="0/0 sites are not written when you call with -v (variants only)."><input type="radio"> homozygous for the reference allele</label>
+    </div>
+  </div>
+  <div class="q" data-q="z-other" data-type="mcq">
+    <div class="q-text">Why did some reads from chromosome 10 map to other chromosomes?</div>
+    <div class="mcq">
+      <label data-why="BWA does not know where a read came from – it looks at every chromosome."><input type="radio"> BWA was told to use every chromosome equally</label>
+      <label data-correct data-why="Repeats, pseudogenes and paralogous genes elsewhere can match a short read as well as (or better than) its true origin; low MAPQ marks such reads."><input type="radio"> Their sequence also occurs, or nearly occurs, elsewhere in the genome</label>
+      <label data-why="Contamination is possible in real data, but it would not produce reads that match human chromosomes."><input type="radio"> The sample was contaminated with bacterial DNA</label>
+    </div>
+  </div>
+  <div class="q" data-q="z-prov" data-type="mcq">
+    <div class="q-text">Six months later a reviewer asks which filter you used on your variants. Where is the answer if you used the workflow engine?</div>
+    <div class="mcq">
+      <label data-correct data-why="Dataset details record the exact command, tool version, parameters and inputs."><input type="radio"> In the dataset details (ⓘ) of the filtered VCF</label>
+      <label data-why="The VCF header helps (bcftools writes its command there) – but the engine's record is complete and always there."><input type="radio"> Nowhere – you should have written it down</label>
+    </div>
+  </div>
+
+  <div class="callout lecture">
+    <div class="co-t">What next?</div>
+    <p>You know <i>where</i> NA12878 differs from the reference. In <a href="variants-to-meaning.html"><b>Variants to meaning</b></a> you will annotate the same variants – which gene, which consequence, how common, how damaging – and look at the affected proteins in 3D. Your <a href="coursework.html"><b>coursework</b></a> then applies the whole pipeline to a patient's exome.</p>
+  </div>
+  <div class="export-row"><button class="btn primary" type="button" data-export-answers>Download my answers</button></div>
+</section>
+
+<!-- =====================================================================
+     REFERENCE
+     ===================================================================== -->
+<section class="chapter" id="ref" data-num="★" data-title="Cheat sheet" hidden>
+  <h1>Cheat sheet</h1>
+  <h2 id="ref-cmd">The commands</h2>
+  <table class="table small">
+    <tr><th>Step</th><th>Command</th></tr>
+    <tr><td>Look at reads</td><td><code>zcat R1.fastq.gz | head -n 8</code></td></tr>
+    <tr><td>Count reads</td><td><code>zcat R1.fastq.gz | wc -l</code> (÷ 4)</td></tr>
+    <tr><td>Quality control</td><td><code>fastqc -o results R1.fastq.gz R2.fastq.gz</code></td></tr>
+    <tr><td>Index a genome (once)</td><td><code>bwa index ref.fa</code> · <code>samtools faidx ref.fa</code></td></tr>
+    <tr><td>Align</td><td><code>bwa mem ref.fa R1.fastq.gz R2.fastq.gz &gt; aligned.sam</code></td></tr>
+    <tr><td>Sort + index</td><td><code>samtools sort -o aligned.sorted.bam aligned.sam</code> · <code>samtools index aligned.sorted.bam</code></td></tr>
+    <tr><td>Summaries</td><td><code>samtools flagstat FILE.bam</code> · <code>samtools idxstats FILE.bam</code></td></tr>
+    <tr><td>Reads in a region</td><td><code>samtools view -c FILE.bam chr10:96541616-96541616</code></td></tr>
+    <tr><td>Call variants</td><td><code>bcftools mpileup -Ou -a AD,DP -f ref.fa FILE.bam | bcftools call -mv -Ov -o calls.vcf</code></td></tr>
+    <tr><td>Filter</td><td><code>bcftools view -i 'QUAL&gt;=30 &amp;&amp; INFO/DP&gt;=10' calls.vcf &gt; filtered.vcf</code></td></tr>
+    <tr><td>Table of fields</td><td><code>bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t[%GT]\n' filtered.vcf</code></td></tr>
+  </table>
+  <h2 id="ref-files">File formats</h2>
+  <table class="table small">
+    <tr><th>Format</th><th>Holds</th><th>Text or binary</th></tr>
+    <tr><td>FASTA (.fa)</td><td>Reference sequences</td><td>text</td></tr>
+    <tr><td>FASTQ (.fastq.gz)</td><td>Reads with qualities</td><td>text, usually gzipped</td></tr>
+    <tr><td>SAM (.sam)</td><td>Alignments</td><td>text</td></tr>
+    <tr><td>BAM (.bam) + BAI (.bai)</td><td>Alignments (compressed) + index</td><td>binary</td></tr>
+    <tr><td>VCF (.vcf, .vcf.gz) / BCF</td><td>Variant calls</td><td>text / binary</td></tr>
+  </table>
+  <h2 id="ref-gloss">Glossary</h2>
+  <table class="table small">
+    <tr><td><b>Exome</b></td><td>The protein-coding exons of all genes (about 1–2% of the genome), captured by hybridisation to probes before sequencing</td></tr>
+    <tr><td><b>Coverage / depth</b></td><td>How many reads cover a base</td></tr>
+    <tr><td><b>Paired-end</b></td><td>Both ends of each DNA fragment are sequenced (read 1 and read 2)</td></tr>
+    <tr><td><b>Insert size</b></td><td>Length of the sequenced DNA fragment</td></tr>
+    <tr><td><b>MAPQ</b></td><td>Mapping quality – confidence the read is placed correctly</td></tr>
+    <tr><td><b>Genotype 0/0, 0/1, 1/1</b></td><td>Homozygous reference, heterozygous, homozygous alternative</td></tr>
+    <tr><td><b>Star allele (*2)</b></td><td>Pharmacogene haplotype names defined by PharmVar</td></tr>
+    <tr><td><b>Provenance</b></td><td>The record of how a result was produced: tools, versions, parameters, inputs</td></tr>
+  </table>
+  <h2 id="ref-credits">Data, software and credits</h2>
+  <ul>
+    <li>Reads: 1000 Genomes Project exome sequencing of NA12878 (run SRR098401; 1000 Genomes Project Consortium (2015) <i>Nature</i> 526:68–74); read pairs from chr10:95–98 Mb of the project's alignment, re-aligned here to hg19. Reference: UCSC hg19 / GRCh37 (Genome Reference Consortium).</li>
+    <li>samtools 1.17, bcftools 1.10 and htslib (Danecek P <i>et al.</i> (2021) <i>GigaScience</i> 10:giab008; MIT licence) compiled to WebAssembly by the <b>biowasm</b> project and run with Aioli (Aboukhalil R, MIT licence).</li>
+    <li>FastQC 0.12.1 (Andrews S, Babraham Bioinformatics), BWA-MEM 0.7.19 (Li H (2013) arXiv:1303.3997) and FreeBayes 1.3.10 (Garrison E &amp; Marth G (2012) arXiv:1207.3907) were run on the same data to record their output.</li>
+    <li>Genome browser: <b>igv.js</b> (Robinson JT <i>et al.</i> (2023) <i>Bioinformatics</i> 39:btac830; MIT licence). Gene models: NCBI RefSeq via UCSC.</li>
+    <li>The workflow engine imitates <b>Galaxy</b> (The Galaxy Community (2024) <i>Nucleic Acids Res</i> 52:W83–W94); tool names and versions follow the Galaxy tool shed.</li>
+    <li>Pharmacogenetics: CPIC guideline for CYP2C19 and clopidogrel (Lee CR <i>et al.</i> (2022) <i>Clin Pharmacol Ther</i> 112:959–967); NICE diagnostics guidance DG59 (2024).</li>
+    <li>Adapted from the module's Galaxy variant-calling practical and IGV tutorials.</li>
+  </ul>
+</section>
+
+    </aside>
+
+    <div class="splitter" role="separator" aria-orientation="vertical" title="Drag to resize · double-click to reset"></div>
+
+    <section class="bench" aria-label="Workbench">
+      <div class="wb-tabs" role="tablist">
+        <button class="wb-tab on" type="button" role="tab" data-wb="terminal"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Terminal<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="report"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V4M4 20h16"/><path d="M8 16l4-5 3 3 5-7"/></svg>Report<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="igv"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M8 4v4M14 10v4M11 16v4"/></svg>IGV<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="galaxy"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><rect x="15" y="3" width="6" height="5" rx="1"/><path d="M9 5.5h6M18 8v8M9 5.5c3 0 3 13 6 13"/></svg>Workflow engine<span class="dot"></span></button>
+        <button class="bench-close" type="button" aria-label="Back to the tutorial">✕ Tutorial</button>
+      </div>
+      <div class="wb-body">
+        <div class="wb-pane" data-wb="terminal"><div id="termRoot"></div></div>
+        <div class="wb-pane" data-wb="report" hidden><div id="reportRoot"></div></div>
+        <div class="wb-pane" data-wb="igv" hidden><div id="igvRoot"></div></div>
+        <div class="wb-pane" data-wb="galaxy" hidden><div id="gxRoot"></div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<button class="bench-fab" type="button" aria-label="Open the workbench"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Workbench</button>
+<noscript><p style="padding:20px">This page needs JavaScript.</p></noscript>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/js/core.js"></script>
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/vfs.js"></script>
+<script src="assets/js/shell.js"></script>
+<script src="assets/js/terminal.js"></script>
+<script src="assets/js/tools-wasm.js"></script>
+<script src="assets/js/tools-sim.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/fastqc.js"></script>
+<script src="assets/vendor/igv/igv.min.js"></script>
+<script src="assets/js/igv-panel.js"></script>
+<script src="assets/js/workflow.js"></script>
+<script src="assets/js/page-reads.js"></script>
+<script src="assets/js/tutorial.js"></script>
+</body>
+</html>

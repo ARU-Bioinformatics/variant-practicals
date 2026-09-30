@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coursework workbench – exome analysis of a child with Rienhoff syndrome</title>
+<meta name="description" content="A browser workbench for the coursework: call, filter and annotate variants in a patient's exome with real samtools, bcftools and Ensembl VEP, inspect them in IGV and map them onto a protein structure. The data stay on your computer.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2310263a'/%3E%3Cpath d='M9 7h14v18H9z' fill='none' stroke='%233fb7a0' stroke-width='2.2' stroke-linejoin='round'/%3E%3Cpath d='M12 12h8M12 16h8M12 20h5' stroke='%233fb7a0' stroke-width='2' stroke-linecap='round'/%3E%3Ccircle cx='24' cy='24' r='3.4' fill='%23f28e2b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/genomics.css">
+</head>
+<body data-page="coursework" data-title="Coursework notes – Rienhoff syndrome exome">
+<div class="app">
+
+  <header class="topbar">
+    <a class="brand" href="index.html" title="All practicals">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#17344d"/><path d="M9 7h14v18H9z" fill="none" stroke="#3fb7a0" stroke-width="2.2" stroke-linejoin="round"/><path d="M12 12h8M12 16h8M12 20h5" stroke="#3fb7a0" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="24" r="3.4" fill="#f28e2b"/></svg>
+      <div>
+        <div class="brand-title">Coursework workbench</div>
+        <div class="brand-sub">Exome analysis · Rienhoff syndrome</div>
+      </div>
+    </a>
+    <div class="spacer"></div>
+    <div class="progress-wrap" title="Steps done and notes written (saved in this browser)"><span class="progress-label">0% done</span><div class="progress"><i></i></div></div>
+    <button class="btn" id="answersBtn" type="button"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg><span>My notes</span></button>
+    <button class="btn" id="helpBtn" type="button" title="How this page works"><svg class="ic" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.6-2.8 4M12 17.5h.01"/></svg><span>Help</span></button>
+  </header>
+
+  <div class="main">
+    <aside class="tut" aria-label="Instructions">
+      <nav class="ch-nav" aria-label="Steps"></nav>
+
+<!-- =====================================================================
+     START
+     ===================================================================== -->
+<section class="chapter" id="start" data-num="0" data-title="Start here" data-bench="data">
+  <h1>Coursework: the exome of a child with “Rienhoff syndrome”</h1>
+  <p class="lede">Bea Rienhoff was born with features that overlap Marfan and Loeys–Dietz syndromes but fitted neither. Her father, a physician and biologist, spent years searching for the cause, and in 2013 her exome sequence identified it. You will repeat the analysis: <b>call variants</b> in her exome yourself, <b>filter and annotate</b> them to find the likely cause, <b>check</b> the evidence in the reads, and show the affected position in the <b>protein structure</b>.</p>
+  <div class="meta-row"><span class="pill">Laboratory report · 2,000 words</span><span class="pill">Read the coursework brief on Canvas</span></div>
+
+  <div class="callout warn">
+    <div class="co-t">Patient data – please read</div>
+    <p>The BAM file is a real patient's sequence. <b>Do not share it</b> outside your studies at ARU and do not upload it to public servers. This workbench reads the file <b>on your own computer</b>: samtools, bcftools and IGV all run inside this web page, and the file is never uploaded. Only two things leave your computer, and only when you ask: pressing <b>Annotate with VEP</b> sends the positions and alleles of your filtered variants (no reads, no names) to Ensembl – the same as pasting a VCF into the VEP web page – and the database links in a variant's details open those websites with that variant's position or identifier.</p>
+  </div>
+
+  <h2>Before you start</h2>
+  <ul>
+    <li>Read the news article (<b>ReinhoffSyndromeNewsArticle.pdf</b>, Maher 2013 <i>Nature</i> 498:418–419) and the coursework brief.</li>
+    <li>Download the coursework data from Canvas and unzip it. You need <b>daughters-reads.bam</b> and <b>daughters-reads.bai</b> (keep them together). The reads cover chromosomes 14 and 18, aligned to <b>hg19</b>.</li>
+    <li>Work through <a href="reads-to-variants.html">Reads to variants</a> and <a href="variants-to-meaning.html">Variants to meaning</a> first: this workbench uses the same commands and tools.</li>
+  </ul>
+
+  <h2>The workflow</h2>
+  <div class="lp-flow"><span>A · load &amp; check</span><i>→</i><span>B · call variants</span><i>→</i><span>C · annotate</span><i>→</i><span>D · filter &amp; prioritise</span><i>→</i><span>E · inspect in IGV</span><i>→</i><span>F · interpret</span><i>→</i><span>G · structure</span></div>
+  <table class="table">
+    <tr><th>Step</th><th>You will…</th><th>For your report</th></tr>
+    <tr><td><button class="goto" data-goto="data" type="button">A · Your data</button></td><td>Load the BAM file; summarise the reads and coverage</td><td>Methods; data quality</td></tr>
+    <tr><td><button class="goto" data-goto="call" type="button">B · Call variants</button></td><td>Run bcftools; filter the calls</td><td>Methods; numbers for the filtering table</td></tr>
+    <tr><td><button class="goto" data-goto="annotate" type="button">C · Annotate</button></td><td>Annotate your calls with Ensembl VEP</td><td>Methods; supplementary table</td></tr>
+    <tr><td><button class="goto" data-goto="prioritise" type="button">D · Prioritise</button></td><td>Filter to a short list of candidate variants and justify each step</td><td>Results: filtering table</td></tr>
+    <tr><td><button class="goto" data-goto="igv" type="button">E · Inspect</button></td><td>Check each candidate in the reads; make IGV figures</td><td>Results: variant table and figures</td></tr>
+    <tr><td><button class="goto" data-goto="interpret" type="button">F · Interpret</button></td><td>Research the candidates in the databases and literature</td><td>Results and discussion</td></tr>
+    <tr><td><button class="goto" data-goto="structure" type="button">G · Structure</button></td><td>Map the protein change onto a 3D structure</td><td>Results: structure figure</td></tr>
+    <tr><td><button class="goto" data-goto="writeup" type="button">H · Write up</button></td><td>Checklist for the report</td><td>Everything</td></tr>
+  </table>
+  <div class="callout info">
+    <div class="co-t">Keep a lab notebook</div>
+    <p>The <b>notes</b> boxes in each step are saved in this browser. Use them to record numbers, commands and observations as you go, and press <b>My notes</b> (top right) to download them. Files you make exist only in this browser tab: use <code>download FILE</code> in the terminal to keep copies. Your Methods section must say exactly what you did – tools, versions, options and thresholds.</p>
+  </div>
+  <div class="name-field"><label for="studentName"><b>Your name or student number</b> (goes on your downloaded notes):</label> <input id="studentName" type="text" data-student-name autocomplete="off"></div>
+</section>
+
+<!-- =====================================================================
+     A · DATA
+     ===================================================================== -->
+<section class="chapter" id="data" data-num="A" data-title="Your data" data-bench="data" hidden>
+  <h1>A · Load and check your data</h1>
+  <div class="activity">
+    <div class="act-t">Step A1 · Load the files</div>
+    <ol class="steps">
+      <li data-task="d-load" data-check="cwLoaded">In the <b>Data</b> tab (or here), choose <b>daughters-reads.bam</b> and <b>daughters-reads.bai</b> together.
+        <div data-filebox></div>
+      </li>
+      <li data-task="d-ls" data-auto="term:command line~ls code=0 line~data">In the <b>Terminal</b>, check they are there: <code>ls -lh data</code> <button class="do showme" type="button" data-term="ls -lh data">show me</button></li>
+    </ol>
+  </div>
+  <div class="activity">
+    <div class="act-t">Step A2 · What is in the file?</div>
+    <ol class="steps">
+      <li data-task="d-header" data-auto="term:command line~view -h code=0">Look at the header: <code>samtools view -H data/daughters-reads.bam | head -n 30</code>. Which reference genome was used? What else does the header tell you about how the file was made? <button class="do showme" type="button" data-term="samtools view -H data/daughters-reads.bam | head -n 30">show me</button></li>
+      <li data-task="d-reads" data-auto="term:command line~samtools view code=0 line~head">Look at a few alignments, from the first megabase of chromosome 14 that has reads: <code>samtools view data/daughters-reads.bam chr14:19000000-20000000 | head -n 5</code>. Note the read length, the FLAG, MAPQ, the quality string (read Box 1 of the brief) and the tags at the end (<code>X0</code> = number of equally good places the read fits). <button class="do showme" type="button" data-term="samtools view data/daughters-reads.bam chr14:19000000-20000000 | head -n 5">show me</button></li>
+      <li data-task="d-idx" data-auto="term:command line~idxstats code=0">Count the reads per chromosome: <code>samtools idxstats data/daughters-reads.bam</code> <button class="do showme" type="button" data-term="samtools idxstats data/daughters-reads.bam">show me</button></li>
+      <li data-task="d-flag" data-auto="term:command line~flagstat code=0">Summarise the flags: <code>samtools flagstat data/daughters-reads.bam</code> <button class="do showme" type="button" data-term="samtools flagstat data/daughters-reads.bam">show me</button></li>
+      <li data-task="d-cov" data-auto="term:command line~coverage code=0">Coverage of the two chromosomes: <code>samtools coverage -r chr14 data/daughters-reads.bam</code> and the same for chr18. Why is the mean depth over a whole chromosome low for an exome? <button class="do showme" type="button" data-term="samtools coverage -r chr14 data/daughters-reads.bam">show me</button></li>
+    </ol>
+  </div>
+  <div class="q" data-q="n-data">
+    <div class="q-text">Notes for Methods: reference build, read length, single- or paired-end, number of reads mapped to chr14 and chr18 (and elsewhere), % mapped.</div>
+  </div>
+  <div class="q" data-q="n-qual">
+    <div class="q-text">Notes: what do you notice about the base qualities (Box 1 of the brief)? What does that mean for the QUAL values a variant caller will report, and what other evidence can you use to judge a call?</div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     B · CALL VARIANTS
+     ===================================================================== -->
+<section class="chapter" id="call" data-num="B" data-title="Call variants" data-bench="terminal" hidden>
+  <h1>B · Call variants</h1>
+  <p class="lede">The reads were aligned for you (with Galaxy). The alignments are only half the job: now make the list of places where Bea differs from the reference, with the same tools as in the practical.</p>
+  <div class="activity">
+    <div class="act-t">Step B1 · Call</div>
+    <ol class="steps">
+      <li data-task="c-call" data-check="cwVcf:calls">Call variants on chromosomes 14 and 18 (this reads about a million alignments on each chromosome: allow a few minutes – the timer at the top of the terminal shows it is working):<br><code>bcftools mpileup -Ou -a AD,DP -f ref/hg19.fa -r chr14,chr18 data/daughters-reads.bam | bcftools call -mv -Ov -o results/calls.vcf</code> <button class="do showme" type="button" data-term="bcftools mpileup -Ou -a AD,DP -f ref/hg19.fa -r chr14,chr18 data/daughters-reads.bam | bcftools call -mv -Ov -o results/calls.vcf">show me</button></li>
+      <li data-task="c-count" data-auto="term:command line~grep -c code=0">Count the calls: <code>grep -c -v '^#' results/calls.vcf</code> <button class="do showme" type="button" data-term="grep -c -v '^#' results/calls.vcf">show me</button></li>
+    </ol>
+  </div>
+  <div class="callout info">
+    <div class="co-t">Why <code>-r chr14,chr18</code>?</div>
+    <p>About 2% of the reads are placed on other chromosomes (you saw them with idxstats), but the reference provided here contains only chromosomes 14 and 18. The region option also tells you something useful: with an index, bcftools can jump straight to the parts of the file you ask for.</p>
+  </div>
+  <div class="activity">
+    <div class="act-t">Step B2 · Filter</div>
+    <ol class="steps">
+      <li data-task="c-filt" data-check="cwVcf:filt">Keep the confident calls, for example: <code>bcftools view -i 'QUAL>=30 &amp;&amp; INFO/DP>=10' results/calls.vcf &gt; results/calls.filtered.vcf</code>. You may choose different thresholds – think about Box 1 – but you must justify them. <button class="do showme" type="button" data-term="bcftools view -i 'QUAL>=30 && INFO/DP>=10' results/calls.vcf > results/calls.filtered.vcf">show me</button></li>
+      <li data-task="c-count2" data-auto="term:command line~filtered.vcf code=0 line~-c">Count what is left. <button class="do showme" type="button" data-term="grep -c -v '^#' results/calls.filtered.vcf">show me</button></li>
+      <li data-task="c-dl" data-auto="term:command name=download code=0">Keep copies: <code>download results/calls.vcf results/calls.filtered.vcf</code> <button class="do showme" type="button" data-term="download results/calls.vcf results/calls.filtered.vcf">show me</button></li>
+    </ol>
+  </div>
+  <div class="optional">
+    <h3>Useful extras <span class="pill ext">Extension</span></h3>
+    <ul>
+      <li>Genotype counts: <code>bcftools view -H -g het results/calls.filtered.vcf | wc -l</code> (heterozygous; <code>-g hom</code> for homozygous).</li>
+      <li>A table of the key fields: <code>bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%QUAL\t%DP\t[%GT\t%AD]\n' results/calls.filtered.vcf | head</code></li>
+      <li>A summary: <code>bcftools stats results/calls.filtered.vcf | grep -A 8 '^# SN'</code></li>
+      <li>Stricter mapping quality (reads placed uniquely): add <code>-q 20</code> to mpileup and compare the numbers.</li>
+    </ul>
+  </div>
+  <div class="q" data-q="n-call">
+    <div class="q-text">Notes: the exact commands you ran, the number of calls before and after filtering, and why you chose your thresholds.</div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     C · ANNOTATE
+     ===================================================================== -->
+<section class="chapter" id="annotate" data-num="C" data-title="Annotate" data-bench="variants" hidden>
+  <h1>C · Annotate with VEP</h1>
+  <div class="activity">
+    <div class="act-t">Step C1 · Load and annotate your calls</div>
+    <ol class="steps">
+      <li data-task="a-load" data-auto="vx:loaded">Load your filtered VCF into the <b>Variants</b> tab. <button class="do" type="button" data-vx-mine="auto">use my filtered calls</button></li>
+      <li data-task="a-vep" data-check="vxAnnotated">Press <b>Annotate with VEP</b> (GRCh37). With a few hundred variants this takes about a minute. If Ensembl is busy, try again a little later – or download your VCF and use the VEP web page on grch37.ensembl.org.</li>
+      <li data-task="a-dl" data-auto="vx:download">Download the annotated table (<b>Table</b> button) for your supplementary information.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="n-vep">
+    <div class="q-text">Notes: how many of your variants are in genes? How many change the protein (HIGH/MODERATE impact)? Record the date and the VEP settings for Methods (Ensembl VEP REST service, GRCh37, Ensembl release – shown in the Variants tab, canonical transcripts, gnomAD v4.1 frequencies, SIFT, PolyPhen-2, CADD, SpliceAI).</div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     D · PRIORITISE
+     ===================================================================== -->
+<section class="chapter" id="prioritise" data-num="D" data-title="Prioritise" data-bench="variants" hidden>
+  <h1>D · Filter and prioritise</h1>
+  <p class="lede">Bea's condition is rare and severe, and her parents are unaffected. Use the funnel above the table and the filters to go from hundreds of calls to a few candidates – and be ready to justify every step.</p>
+  <ul>
+    <li><b>Consequence:</b> which kinds of variant could plausibly cause a severe developmental disorder? What might a consequence filter miss (think about <i>CYP2C19*2</i>)?</li>
+    <li><b>Frequency:</b> how common could a causal variant be in gnomAD, given how rare the condition is?</li>
+    <li><b>Inheritance:</b> with unaffected parents, is a heterozygous or a homozygous variant more likely? (What would you need to be sure?)</li>
+    <li><b>Genes:</b> which of the remaining genes are known to be involved in connective tissue, growth or TGF-β signalling? Search OMIM and UniProt for each.</li>
+  </ul>
+  <div class="activity">
+    <div class="act-t">Step D1 · Build your funnel</div>
+    <ol class="steps">
+      <li data-task="p-funnel" data-auto="vx:funnel stages>1">Build your funnel with the filters in the <b>Variants</b> tab – <b>Impact</b> (with or without <b>+ SpliceAI ≥ 0.5</b>), <b>Population frequency</b> and <b>Genotype</b>. Each filter you set adds a bar to the funnel, which shows how many variants are left after each step. Try different choices and see what each one removes.</li>
+      <li data-task="p-list">Click each remaining candidate to open its details: gene, consequence, frequency, predictions and database links.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="n-funnel">
+    <div class="q-text">Notes: a table of your filtering steps (step, reason, number of variants left) and your list of candidates with a sentence on each.</div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     E · IGV
+     ===================================================================== -->
+<section class="chapter" id="igv" data-num="E" data-title="Inspect in IGV" data-bench="igv" hidden>
+  <h1>E · Inspect the candidates in IGV</h1>
+  <div class="activity">
+    <div class="act-t">Step E1 · Look at the reads</div>
+    <ol class="steps">
+      <li data-task="i-load" data-check="igvTrackAny">Show your BAM file in IGV: <button class="do" type="button" data-cw-igv="1">load my BAM in IGV</button> (or use <b>Load files from my computer</b> in the IGV tab).</li>
+      <li data-task="i-go">Go to each candidate: type its position (e.g. <code>chr14:12,345,678</code>) in IGV's search box, or press <b>Show the reads in IGV</b> in the variant's details.</li>
+      <li data-task="i-judge">For each: the depth; the number of reads for each allele (click the coverage bar); both strands?; mapping quality; anything suspicious nearby. Is the call convincing?</li>
+      <li data-task="i-gene">Zoom in to read the gene, exon, strand, the codon and amino acid, and their number (hover over the amino acids). Remember: for a gene on the minus strand, read the codon on the other strand, right to left.</li>
+      <li data-task="i-img" data-auto="igv:image">Save a clear image of each variant for your figures (<b>Save image</b>), and write a full legend.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="n-igv">
+    <div class="q-text">Notes: for each candidate – chromosome, position, reference and alternative base, reads for each (and %), zygosity, gene, exon, strand, codon change and amino-acid change.</div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     F · INTERPRET
+     ===================================================================== -->
+<section class="chapter" id="interpret" data-num="F" data-title="Interpret" data-bench="variants" hidden>
+  <h1>F · Interpret the candidates</h1>
+  <p>For each candidate, gather the evidence – the details card in the Variants tab links to most of these:</p>
+  <table class="table small">
+    <tr><th>Question</th><th>Where to look</th></tr>
+    <tr><td>Is it known? Has it been reported in patients?</td><td>dbSNP (rs number), ClinVar, the literature (PubMed)</td></tr>
+    <tr><td>How common is it in healthy people? How often does the gene tolerate damaging variants?</td><td>gnomAD (the website's v2.1 dataset uses GRCh37 positions; v4 uses GRCh38): allele frequency; the gene page's constraint scores (e.g. pLI/LOEUF for loss-of-function, missense Z)</td></tr>
+    <tr><td>What does the gene do? Which disorders is it linked to, and how are they inherited?</td><td>OMIM, UniProt (Function, Disease &amp; Variants), GeneCards</td></tr>
+    <tr><td>What does the change do to the protein?</td><td>VEP consequence and HGVS; SIFT, PolyPhen-2, CADD, SpliceAI; the protein's domains and structure</td></tr>
+    <tr><td>For a stop-gained variant: will the mRNA be destroyed (nonsense-mediated decay) or a short protein made? Are other stop-gained variants in this gene common in healthy people?</td><td>Where the stop falls (which exon, and how far from the last exon); the loss-of-function variants listed for the gene in gnomAD, and how common they are</td></tr>
+  </table>
+  <div class="q" data-q="n-interpret">
+    <div class="q-text">Notes: the evidence for and against each candidate, with database identifiers (rs numbers, OMIM numbers) for your references.</div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     G · STRUCTURE
+     ===================================================================== -->
+<section class="chapter" id="structure" data-num="G" data-title="Structure" data-bench="viewer" hidden>
+  <h1>G · Show the variant in the protein structure</h1>
+  <div class="activity">
+    <div class="act-t">Step G1 · Find and load a structure</div>
+    <ol class="steps">
+      <li data-task="s-find">Find experimental structures of your protein: its UniProt entry, section <b>Structure</b> (or the PDB). Choose one that contains the region with your variant. (The coursework data folder also contains one structure file – which protein is it?)</li>
+      <li data-task="s-load" data-auto="viewer:loaded">Type the four-character PDB code into the <b>PDB ID</b> box of the 3D viewer and press <b>Load</b> (or use <b>Open file</b> for a .pdb file from your computer).</li>
+      <li data-task="s-chains">Identify the chains: which chain is your protein? Is there more than one copy, or a partner protein? Hover over the structure and use the workspace list.</li>
+    </ol>
+  </div>
+  <div class="callout warn">
+    <div class="co-t">Numbering (Box 2 of the brief)</div>
+    <p>Positions from IGV and VEP count from the first amino acid of the <b>precursor</b> protein made from the gene. Many secreted proteins are cut after translation, and structures of the <b>mature</b> protein are often numbered from its own first residue. Check UniProt's <b>PTM/Processing</b> section: if the mature chain starts at residue <i>n</i>, a precursor position <i>p</i> becomes <i>p</i> − (<i>n</i> − 1) in the structure. Always check that the residue you highlight is the expected amino acid.</p>
+  </div>
+  <div class="activity">
+    <div class="act-t">Step G2 · Make the figure</div>
+    <ol class="steps">
+      <li data-task="s-sel">Select your residue with the viewer's command line, e.g. <code>select A:123</code>, then <code>show sticks sele</code>, <code>color orange sele</code>, <code>label sele</code> and <code>center sele</code> (use your own chain and number).</li>
+      <li data-task="s-near">Show what it touches: <code>select near sele 4.5</code> then <code>show sticks sele</code>. Which atoms are within bonding distance – hydrogen bonds, salt bridges, disulfide bonds, contacts with another chain or a ligand? Hover over atoms to identify them.</li>
+      <li data-task="s-img">Add a key and labels, then save a high-resolution image (Save image tab). Write a legend that gives the PDB code, the chains shown and the numbering you used.</li>
+    </ol>
+  </div>
+  <div class="q" data-q="n-struct">
+    <div class="q-text">Notes: PDB code and resolution; chain(s); the residue number in the gene and in the structure; where the residue is (surface or core, structured or flexible, what it contacts); how the new amino acid differs (size, charge, bonds it can or cannot make); what that may do to the protein.</div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     H · WRITE UP
+     ===================================================================== -->
+<section class="chapter" id="writeup" data-num="H" data-title="Write up" data-bench="variants" hidden>
+  <h1>H · Writing the report</h1>
+  <table class="table small">
+    <tr><th>Section</th><th>Checklist</th></tr>
+    <tr><td>Introduction</td><td>Marfan and Loeys–Dietz syndromes; the TGF-β pathway; why exome sequencing; the aim</td></tr>
+    <tr><td>Materials and methods</td><td>The data (exome, reads, hg19, how aligned); every tool with its version and the key options/thresholds: samtools 1.17 and bcftools 1.10 (run in the browser workbench), Ensembl VEP (GRCh37; Ensembl release and date), gnomAD v4.1 (via VEP), IGV, the structure viewer and PDB entry; databases consulted</td></tr>
+    <tr><td>Results</td><td>Data quality (coverage); a <b>filtering table</b> (steps and numbers); a <b>variant table</b> (chromosome, position, reference/alternative, zygosity and read counts, gene, HGVS c. and p., consequence, frequency, predictions, identifiers); IGV figures of each variant; the structure figure; the evidence for each candidate</td></tr>
+    <tr><td>Conclusion</td><td>Your conclusion and its strength; the limitations (only two chromosomes, capture and coverage, quality scores, no parental data, predictions are not proof); what further work or tools would confirm it; is the name “Rienhoff syndrome” justified?</td></tr>
+    <tr><td>References</td><td>At most 10 papers, plus database identifiers (OMIM, rs numbers, PDB codes)</td></tr>
+  </table>
+  <p>Every figure needs a legend that says what is shown, where (genome build and coordinates, or PDB code and residues) and how it was made.</p>
+  <div class="export-row"><button class="btn primary" type="button" data-export-answers>Download my notes</button></div>
+  <h2 id="credits">Credits</h2>
+  <ul class="small">
+    <li>samtools 1.17 and bcftools 1.10 (Danecek P <i>et al.</i> (2021) <i>GigaScience</i> 10:giab008) compiled to WebAssembly by biowasm, run with Aioli. Genome browser: igv.js (Robinson JT <i>et al.</i> (2023) <i>Bioinformatics</i> 39:btac830). Annotation: Ensembl VEP (McLaren W <i>et al.</i> (2016) <i>Genome Biol</i> 17:122). Molecular graphics: NGL Viewer (Rose AS <i>et al.</i> (2018) <i>Bioinformatics</i> 34:3755–3758). All MIT or Apache licensed.</li>
+    <li>Reference sequence: UCSC hg19 (GRCh37) chromosomes 14 and 18; gene models: NCBI RefSeq via UCSC.</li>
+    <li>Case: Maher B (2013) <i>Nature</i> 498:418–419; Rienhoff HY Jr <i>et al.</i> (2013) <i>Am J Med Genet A</i> 161A:2040–2046.</li>
+  </ul>
+</section>
+
+    </aside>
+
+    <div class="splitter" role="separator" aria-orientation="vertical" title="Drag to resize · double-click to reset"></div>
+
+    <section class="bench" aria-label="Workbench">
+      <div class="wb-tabs" role="tablist">
+        <button class="wb-tab on" type="button" role="tab" data-wb="data"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Data<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="terminal"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Terminal<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="variants"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>Variants<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="igv"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/><path d="M8 4v4M14 10v4M11 16v4"/></svg>IGV<span class="dot"></span></button>
+        <button class="wb-tab" type="button" role="tab" data-wb="viewer"><svg class="ic" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>3D viewer<span class="dot"></span></button>
+        <button class="bench-close" type="button" aria-label="Back to the instructions">✕ Instructions</button>
+      </div>
+      <div class="wb-body">
+        <div class="wb-pane" data-wb="data"><div id="dataRoot" class="cw-data">
+          <h3>Your data</h3>
+          <p>Load the two coursework files. They are read here, on your computer – nothing is uploaded.</p>
+          <div data-filebox></div>
+          <h4>Also available</h4>
+          <table class="table small">
+            <tr><th>File</th><th>What it is</th></tr>
+            <tr><td><code>ref/hg19.fa</code></td><td>The hg19 reference for chromosomes 14 and 18 (sequence kept near the exome targets; N elsewhere), with its index</td></tr>
+            <tr><td><code>results/</code></td><td>Where your output files go (in the Terminal)</td></tr>
+          </table>
+          <p class="muted small">If a file will not load: check that you unzipped the download, that you chose both the .bam and the .bai, and that you are using Chrome, Edge, Firefox or Safari on a laptop or desktop computer.</p>
+        </div></div>
+        <div class="wb-pane" data-wb="terminal" hidden><div id="termRoot"></div></div>
+        <div class="wb-pane" data-wb="variants" hidden><div id="vxRoot"></div></div>
+        <div class="wb-pane" data-wb="igv" hidden><div id="igvRoot"></div></div>
+        <div class="wb-pane" data-wb="viewer" hidden><div id="viewerRoot"></div></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<button class="bench-fab" type="button" aria-label="Open the workbench"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Workbench</button>
+<noscript><p style="padding:20px">This page needs JavaScript.</p></noscript>
+
+<script src="assets/js/config.js"></script>
+<script src="assets/vendor/ngl/ngl.js"></script>
+<script src="assets/js/core.js"></script>
+<script src="assets/js/icons.js"></script>
+<script src="assets/js/viewer-core.js"></script>
+<script src="assets/js/annot.js"></script>
+<script src="assets/js/alphafold.js"></script>
+<script src="assets/js/viewer-ui.js"></script>
+<script src="assets/js/commands.js"></script>
+<script src="assets/js/session.js"></script>
+<script src="assets/js/vfs.js"></script>
+<script src="assets/js/shell.js"></script>
+<script src="assets/js/terminal.js"></script>
+<script src="assets/js/tools-wasm.js"></script>
+<script src="assets/vendor/igv/igv.min.js"></script>
+<script src="assets/js/igv-panel.js"></script>
+<script src="assets/js/variants.js"></script>
+<script src="assets/js/page-coursework.js"></script>
+<script src="assets/js/tutorial.js"></script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Genomic variant analysis – practicals</title>
+<meta name="description" content="Browser-based practicals for genomic variant analysis: from sequencing reads to variants, from variants to meaning, and a workbench for the coursework.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2310263a'/%3E%3Cpath d='M6 9h20M6 16h20M6 23h20' stroke='%233fb7a0' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='19' cy='16' r='3.4' fill='%23f28e2b'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/genomics.css">
+<style>
+  body { overflow: auto; background: var(--bg); }
+  .lp-top { background: #17344d; color: #fff; }
+  .lp-top .landing { padding-top: 34px; padding-bottom: 30px; }
+  .lp-top h1 { color: #fff; }
+  .lp-top .lede { color: #cfe0ee; }
+  .lp-top .lp-flow span { background: rgba(255,255,255,0.12); color: #fff; }
+  .lp-top .lp-flow i { color: #9fb6ca; }
+  .lp-steps { counter-reset: s; }
+</style>
+</head>
+<body>
+  <div class="lp-top">
+    <div class="landing">
+      <div class="kicker" style="color:#3fb7a0;font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:.8rem">MSc Molecular Genetics &amp; Bioinformatics</div>
+      <h1>Genomic variant analysis</h1>
+      <p class="lede">Two practicals and a coursework workbench that take you from raw sequencing reads to the meaning of a genetic variant. Everything runs in your web browser – a real command line, a Galaxy-style workflow engine, the IGV genome browser, variant annotation with Ensembl VEP and a 3D protein viewer – with nothing to install.</p>
+      <div class="lp-flow"><span>reads</span><i>→</i><span>quality control</span><i>→</i><span>alignment</span><i>→</i><span>variant calling</span><i>→</i><span>annotation</span><i>→</i><span>filtering</span><i>→</i><span>interpretation</span><i>→</i><span>protein structure</span></div>
+    </div>
+  </div>
+  <main class="landing">
+    <div class="lp-cards">
+      <a class="lp-card" href="reads-to-variants.html">
+        <div class="kicker">Practical</div>
+        <h2>Reads to variants</h2>
+        <p>Does NA12878 carry <i>CYP2C19*2</i>, the allele that makes clopidogrel less effective? Find out from her raw exome reads.</p>
+        <ul>
+          <li>The Linux command line; FASTQ, SAM/BAM and VCF files</li>
+          <li>FastQC, BWA-MEM, samtools and bcftools</li>
+          <li>Checking a call in IGV</li>
+          <li>The same pipeline in a Galaxy-style workflow engine – and which approach to use when</li>
+        </ul>
+        <span class="go">Start →</span>
+      </a>
+      <a class="lp-card" href="variants-to-meaning.html">
+        <div class="kicker">Practical</div>
+        <h2>Variants to meaning</h2>
+        <p>Annotate the same variants and decide which of them matter – for prescribing, and for diagnosing rare disease.</p>
+        <ul>
+          <li>Ensembl VEP: consequences, transcripts, HGVS names</li>
+          <li>gnomAD frequencies; SIFT, PolyPhen-2, CADD, SpliceAI</li>
+          <li>Why a “synonymous” variant destroys CYP2C19</li>
+          <li>Filtering funnels, star alleles, and variants in 3D</li>
+        </ul>
+        <span class="go">Start →</span>
+      </a>
+      <a class="lp-card" href="coursework.html">
+        <div class="kicker">Coursework</div>
+        <h2>Coursework workbench</h2>
+        <p>Analyse the exome of a child with a new connective-tissue syndrome: call, filter and annotate her variants, check them in the reads and map the change onto the protein.</p>
+        <ul>
+          <li>Real samtools and bcftools on your copy of the data</li>
+          <li>The data stay on your computer – nothing is uploaded</li>
+          <li>Notes you can download for your report</li>
+        </ul>
+        <span class="go">Open →</span>
+      </a>
+    </div>
+
+    <div class="two-col">
+      <div class="lp-note">
+        <h3 style="margin-top:0">Before you start</h3>
+        <ul>
+          <li>Use <b>Chrome, Edge, Firefox or Safari</b> on a laptop or desktop computer; a wide screen helps.</li>
+          <li>Do the practicals in order: the second starts from the variants you make in the first.</li>
+          <li>Your progress and answers are saved <b>in this browser</b> on this computer. Use <b>My answers</b> on each page to download them.</li>
+          <li>The pages need an internet connection for the data, for Ensembl VEP and for the database links.</li>
+        </ul>
+      </div>
+      <div class="lp-note">
+        <h3 style="margin-top:0">What is real, what is simulated?</h3>
+        <ul>
+          <li><b>Real:</b> samtools, bcftools, bgzip and tabix (compiled to WebAssembly and run in your browser); the IGV genome browser; Ensembl VEP; the protein structures; all the data.</li>
+          <li><b>Replayed:</b> FastQC, BWA and FreeBayes are too large for a browser, so the terminal replays their real output on exactly these reads.</li>
+          <li>The workflow engine imitates <a href="https://usegalaxy.eu" target="_blank" rel="noopener">Galaxy</a> and runs the same programs as the terminal.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted small" style="margin-top:24px">Data: 1000 Genomes Project (NA12878, SRR098401); UCSC hg19/GRCh37; NCBI RefSeq; Ensembl; gnomAD; RCSB PDB. Software: samtools/bcftools/htslib via biowasm and Aioli, igv.js, NGL Viewer (MIT licences). Adapted from the module's Galaxy, IGV, cytochrome P450, VEP and molecular graphics tutorials (© 2020 Tim Hearn and contributors), shared under the <a href="https://creativecommons.org/licenses/by-nc-sa/2.0/uk/" target="_blank" rel="noopener">Creative Commons BY-NC-SA 2.0 UK licence</a>.</p>
+  </main>
+</body>
+</html>
