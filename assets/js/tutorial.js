@@ -179,7 +179,13 @@
   function initActions() {
     const keys = () => ['cmd', 'term', 'termRun', 'igv', 'uniprot', 'pdb', 'bench', 'vtab', 'goto'].concat(Object.keys(MG.actions));
     document.addEventListener('click', async (e) => {
-      const sel = keys().map((k) => '[data-' + k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase()) + ']').join(',');
+      // only real controls trigger actions. Chapters also carry data-bench (the workbench
+      // tab to show with them), so a bare [data-bench] selector would catch every click
+      // inside a chapter – blocking radio buttons and ticks and pulling focus to the terminal.
+      const sel = keys()
+        .map((k) => '[data-' + k.replace(/[A-Z]/g, (m) => '-' + m.toLowerCase()) + ']')
+        .map((a) => `button${a},a${a},[role="button"]${a}`)
+        .join(',');
       const b = e.target.closest(sel);
       if (!b || !b.closest('.tut, .modal')) return;
       e.preventDefault();
