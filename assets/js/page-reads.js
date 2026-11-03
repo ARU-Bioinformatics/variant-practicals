@@ -67,7 +67,8 @@
     termRoot.innerHTML = '<div class="ex-empty"><span class="spinner"></span><p>Loading the practical files…</p></div>';
     const gxRoot = document.getElementById('gxRoot');
     ready
-      .then(() => {
+      .then(async () => {
+        await MG.workspace.loaded;
         termRoot.innerHTML = '';
         MG.app.term = new MG.TerminalUI(termRoot, { fs, hostname: 'genomics', welcome: WELCOME });
         MG.app.gx = new MG.WorkflowEngine(gxRoot, {
@@ -80,6 +81,7 @@
             return { name: f.name, ext: 'fastqsanger.gz', size: f.gzBytes, entry: Object.assign({}, fs.get(BASE + '/data/' + f.name)), protected: true, info: `${MG.fmt(f.reads)} sequences`, peek: f.head.slice(0, 4).join('\n'), source: 'Imported from the course data library (1000 Genomes run SRR098401)' };
           })
         });
+        restoreWork(MG.workspace);
         bus.emit('page:ready', {});
       })
       .catch((e) => {
@@ -87,6 +89,36 @@
         termRoot.innerHTML = '<div class="ex-empty"><h3>The practical files could not be loaded</h3><p>Check your internet connection and reload the page. If you opened the page straight from your computer (file://), use the web address instead.</p></div>';
       });
   };
+
+  /* the student's work from an earlier visit, saved in this browser (workspace.js), and saving it from now on */
+  function restoreWork(ws) {
+    const term = MG.app.term, gx = MG.app.gx;
+    try {
+      ws.restoreFiles(fs);
+      if (ws.hasWork()) {
+        const lines = ws.get('term');
+        const note = 'Welcome back. Your files are as you left them, and the ↑ key recalls the commands you ran.';
+        if (lines && lines.length) term.restoreOutput(lines, note);
+        else if (ws.restoredFiles) term.note(note);
+        gx.restore(ws.get('gx'));
+        const rep = ws.get('report');
+        if (rep && rep.current && MG.simData.fastqc[rep.current]) MG.app.fastqc.load(rep.current, MG.simData.fastqc[rep.current].json).catch((e) => console.warn(e));
+        MG.app.igv.restore(ws.get('igv'), fs);
+        term.refresh();
+      } else if (!ws.available) term.note(MG.workspaceNote + ' Use  download FILE  to keep copies of the files you need.');
+    } catch (e) {
+      console.warn('The saved work could not all be restored', e);
+    }
+    ws.saver('term', () => term.snapshotOutput());
+    ws.saver('gx', () => gx.snapshot());
+    ws.saver('report', () => (MG.app.fastqc.current ? { current: MG.app.fastqc.current } : undefined));
+    ws.saver('igv', () => MG.app.igv.snapshot());
+    ws.saver('bench', () => MG.app.currentBench);
+    ws.watchFiles(fs);
+    ws.restoreBench();
+    ws.start();
+  }
+
   /* the Galaxy-style layout needs room: give the workbench more width while it is shown */
   bus.on('app:bench', ({ name }) => document.body.classList.toggle('wide-bench', name === 'galaxy'));
 
@@ -101,7 +133,7 @@
         <li><button class="do showme" type="button" disabled>show me</button> buttons type a command for you (press <span class="kbd">Enter</span> to run it) – or do the step for you. Try it yourself first.</li>
         <li>In the terminal: <span class="kbd">↑</span>/<span class="kbd">↓</span> recall earlier commands, <span class="kbd">Tab</span> completes file names, <span class="kbd">Ctrl</span>+<span class="kbd">C</span> cancels, <code>help</code> lists the commands and <code>man samtools</code> explains one.</li>
         <li>Steps tick themselves when the page sees you do them. Your answers are saved in this browser – use <b>My answers</b> to download them.</li>
-        <li>The files you make live in this browser tab. If you reload, re-run the commands (the ↑ key remembers them).</li>
+        <li>Your files, the workflow engine's history and what you had open in IGV are saved in this browser as you work, so they are still here if you reload the page or come back later on this computer. <b>Start again</b> (under <b>My answers</b>) clears them. To keep a copy of a file somewhere else, use <code>download FILE</code>.</li>
        </ul>`
     );
   };

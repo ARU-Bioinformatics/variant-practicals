@@ -232,6 +232,8 @@
     setVCF(text, name) {
       const { recs, samples } = parseVCF(text);
       this.recs = recs;
+      this.vcfText = text;
+      this.vepRaw = null;
       this.name = name || 'variants.vcf';
       this.samples = samples;
       this.annotated = false;
@@ -243,6 +245,7 @@
     async annotateSaved(url) {
       const vep = await MG.fetchJSON(url);
       attach(this.recs, vep);
+      this.vepRaw = null;
       this.annotated = 'saved';
       this.render();
       bus.emit('vx:annotated', { source: 'saved', n: this.recs.length });
@@ -256,6 +259,7 @@
         const relP = vepRelease();
         const vep = await runVEP(this.recs, (i, n) => status && (status.innerHTML = `<span class="spinner small"></span> Ensembl VEP: ${Math.min(i + 150, n)} of ${n} variants…`));
         attach(this.recs, vep);
+        this.vepRaw = vep;
         this.annotated = 'live';
         this.vepInfo = { release: await relP, date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) };
         this.render();
@@ -463,11 +467,70 @@
       const st = this.filterStages(f);
       return { impacts: Array.from(f.impacts).join(','), splice: !!f.spliceKeep, maxAF: f.maxAF, gene: f.gene, zyg: f.zyg, shown: this.recs.filter((r) => st.every((s) => s.test(r))).length };
     }
-    setFunnel(stages, title, note) {
+    setFunnel(stages, title, note, name) {
       this.opts.funnel = stages;
       this.opts.funnelTitle = title;
       this.opts.funnelNote = note;
+      this.funnelName = name || null; // so that the page can set the same funnel again after a reload
       this.render();
+    }
+
+    /* ---------- saved in the browser (workspace.js) ---------- */
+    /** the variants, their annotation and the table's settings, as plain data */
+    snapshot() {
+      if (this.restoring || !this.name) return undefined;
+      const f = this.filters;
+      return {
+        v: 1,
+        name: this.name,
+        vcf: this.vcfText || '',
+        annotated: this.annotated || false,
+        vep: this.annotated === 'live' ? this.vepRaw || null : null,
+        vepInfo: this.vepInfo || null,
+        filters: { impacts: Array.from(f.impacts), spliceKeep: !!f.spliceKeep, maxAF: f.maxAF, gene: f.gene, zyg: f.zyg, text: f.text },
+        sortKey: this.sortKey,
+        sortDir: this.sortDir,
+        sel: this.sel ? this.sel.key : null,
+        funnel: this.funnelName || null
+      };
+    }
+    /** put saved variants and settings back; funnel(name) gives the page's funnel of that name */
+    async restore(s, opts = {}) {
+      if (!s || s.v !== 1 || !s.vcf) return false;
+      this.restoring = true;
+      try {
+        this.setVCF(s.vcf, s.name);
+        if (s.annotated === 'live' && Array.isArray(s.vep)) {
+          attach(this.recs, s.vep);
+          this.vepRaw = s.vep;
+          this.vepInfo = s.vepInfo || null;
+          this.annotated = 'live';
+        } else if (s.annotated === 'saved' && this.opts.savedUrl) {
+          try {
+            await this.annotateSaved(this.opts.savedUrl);
+          } catch (e) {
+            console.warn('The saved VEP results could not be loaded', e);
+          }
+        }
+        const f = s.filters || {};
+        Object.assign(this.filters, { impacts: new Set(f.impacts || IMPACTS), spliceKeep: !!f.spliceKeep, maxAF: f.maxAF || 'any', gene: f.gene || '', zyg: f.zyg || 'any', text: f.text || '' });
+        if (s.sortKey) {
+          this.sortKey = s.sortKey;
+          this.sortDir = s.sortDir || 1;
+        }
+        const fn = s.funnel && opts.funnel ? opts.funnel(s.funnel) : null;
+        if (fn) {
+          this.opts.funnel = fn.stages;
+          this.opts.funnelTitle = fn.title;
+          this.opts.funnelNote = fn.note;
+          this.funnelName = s.funnel;
+        }
+        this.sel = s.sel ? this.recs.find((r) => r.key === s.sel) || null : null;
+        this.render();
+      } finally {
+        this.restoring = false;
+      }
+      return true;
     }
     /** a funnel: counts after each successive stage (stages come from the page) */
     funnel() {

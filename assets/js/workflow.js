@@ -170,6 +170,7 @@
         L.appendChild(row);
       });
       if (!vis.length) L.appendChild(h('p.muted.small', 'This history is empty.'));
+      bus.emit('gx:changed', {});
     }
     deleteDataset(hid) {
       const d = this.ds(hid);
@@ -374,6 +375,70 @@
       bus.emit('gx:job', { tool: t.id, state: 'ok', job: job.id, invocation: job.invocation });
     }
 
+    /* ================= saved in the browser (workspace.js) ================= */
+    /** the history, its jobs and the workflows, as plain data */
+    snapshot() {
+      if (this.restoring) return undefined;
+      const plain = (o) => JSON.parse(JSON.stringify(o));
+      return {
+        v: 1,
+        hidCounter: this.hidCounter,
+        jobCounter: this.jobCounter,
+        inv: this._inv || 0,
+        jobs: plain(this.jobs),
+        datasets: this.datasets.map((d) => {
+          const c = Object.assign({}, d, { jobId: d.job ? d.job.id : null });
+          delete c.job;
+          delete c.entry;
+          return plain(c);
+        }),
+        workflows: plain(this.workflows)
+      };
+    }
+    /** put a saved history back (the files themselves are restored with the file system) */
+    restore(s) {
+      if (!s || s.v !== 1) return false;
+      const date = (x) => (x ? new Date(x) : x);
+      const unfinished = (st) => st === 'queued' || st === 'running';
+      this.restoring = true;
+      try {
+        const jobs = (s.jobs || []).map((j) => {
+          const job = Object.assign({}, j, { created: date(j.created), started: date(j.started), finished: date(j.finished) });
+          if (unfinished(job.state)) {
+            job.state = 'error';
+            job.stderr = (job.stderr || '') + 'The page was closed before this job finished, so it did not run to the end. Run it again.';
+          }
+          return job;
+        });
+        const byId = new Map(jobs.map((j) => [j.id, j]));
+        const datasets = (s.datasets || []).map((sd) => {
+          // datasets from the course library stay as the page made them
+          const own = sd.protected && this.datasets.find((x) => x.hid === sd.hid);
+          if (own) return own;
+          const d = Object.assign({}, sd, { created: date(sd.created) || new Date() });
+          d.job = sd.jobId != null ? byId.get(sd.jobId) || null : null;
+          delete d.jobId;
+          if (unfinished(d.state)) d.state = 'error';
+          return d;
+        });
+        this.datasets.forEach((x) => {
+          if (!datasets.some((y) => y.hid === x.hid)) datasets.push(x);
+        });
+        datasets.sort((a, b) => a.hid - b.hid);
+        this.datasets = datasets;
+        this.jobs = jobs;
+        this.hidCounter = Math.max(0, s.hidCounter || 0, ...datasets.map((d) => d.hid));
+        this.jobCounter = Math.max(0, s.jobCounter || 0, ...jobs.map((j) => j.id));
+        this._inv = s.inv || 0;
+        if (Array.isArray(s.workflows) && s.workflows.length) this.workflows = s.workflows;
+        this.renderHistory();
+        this.showHome();
+      } finally {
+        this.restoring = false;
+      }
+      return true;
+    }
+
     /* ================= dataset views ================= */
     async showDataset(hid) {
       const d = this.ds(hid);
@@ -502,7 +567,10 @@
       const C = this.center;
       C.innerHTML = '';
       const nameIn = h('input.gx-wfname', { type: 'text', value: w.name, 'aria-label': 'Workflow name' });
-      nameIn.addEventListener('input', () => (w.name = nameIn.value));
+      nameIn.addEventListener('input', () => {
+        w.name = nameIn.value;
+        bus.emit('gx:changed', {});
+      });
       const runB = h('button.btn.small.primary', { type: 'button', html: MG.icon('play') + '<span>Run</span>' });
       runB.addEventListener('click', () => this.showRunForm(i));
       const backB = h('button.btn.small', { type: 'button', text: '← All workflows' });
@@ -588,6 +656,7 @@
       svg.setAttribute('height', maxY);
       requestAnimationFrame(() => this._drawWires(svg));
       this.showStepSettings(this._selStep && w.steps.includes(this._selStep) ? this._selStep : null);
+      bus.emit('gx:changed', {});
     }
     _portPos(stepId, name, dir) {
       const el = this.canvas.querySelector(`.gx-port.${dir}[data-step="${stepId}"][data-name="${CSS.escape(name)}"] .dot`);
@@ -703,6 +772,7 @@
         const lab = h('input', { type: 'text', value: st.label });
         lab.addEventListener('input', () => {
           st.label = lab.value;
+          bus.emit('gx:changed', {});
           const n = this.canvas.querySelector(`.gx-node[data-id="${st.id}"] .gx-node-t span`);
           if (n) n.textContent = st.label;
         });

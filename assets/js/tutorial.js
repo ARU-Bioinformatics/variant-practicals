@@ -540,11 +540,14 @@
     (await MG.copyText(out)) ? toast('Answers copied to the clipboard.') : toast('Could not copy.', 'error');
   }
   function resetProgress() {
-    const m = MG.modal('Start again?', '<p>This clears your ticks and answers <b>in this browser</b>. Download your answers first if you want to keep them.</p><div class="prompt-actions"><button class="btn" data-x="no" type="button">Cancel</button><button class="btn primary" data-x="yes" type="button">Clear everything</button></div>');
+    const files = MG.workspace ? ', and the files and other work saved for this page,' : '';
+    const m = MG.modal('Start again?', `<p>This clears your ticks and answers${files} <b>in this browser</b>. Download anything you want to keep first.</p><div class="prompt-actions"><button class="btn" data-x="no" type="button">Cancel</button><button class="btn primary" data-x="yes" type="button">Clear everything</button></div>`);
     m.box.querySelector('[data-x="no"]').addEventListener('click', () => m.close());
-    m.box.querySelector('[data-x="yes"]').addEventListener('click', () => {
+    m.box.querySelector('[data-x="yes"]').addEventListener('click', async () => {
       store.remove('progress');
       store.remove('chapter');
+      store.remove('termHistory');
+      if (MG.workspace) await MG.workspace.clear();
       location.hash = '';
       location.reload();
     });

@@ -122,7 +122,7 @@
       addFiles(inp.files);
       inp.value = '';
     });
-    const box = h('div.filebox', h('p', { html: 'Drag <b>daughters-reads.bam</b> and <b>daughters-reads.bai</b> here together, or' }), btn, inp, h('p.muted.small', 'Hold Ctrl (Windows) or ⌘ (Mac) to pick both files. They are read by this web page on your computer and are never uploaded.'), h('div.cw-status', { dataset: { cwStatus: '' } }));
+    const box = h('div.filebox', h('p', { html: 'Drag <b>daughters-reads.bam</b> and <b>daughters-reads.bai</b> here together, or' }), btn, inp, h('p.muted.small', 'Hold Ctrl (Windows) or ⌘ (Mac) to pick both files. They are read by this web page on your computer and are never uploaded. The browser keeps a copy, so on this computer you only need to load them once.'), h('div.cw-status', { dataset: { cwStatus: '' } }));
     ['dragenter', 'dragover'].forEach((ev) => box.addEventListener(ev, (e) => {
       e.preventDefault();
       box.classList.add('over');
@@ -142,7 +142,7 @@
   page.init = function () {
     document.querySelectorAll('[data-filebox]').forEach(fileBox);
     MG.app.term = new MG.TerminalUI(document.getElementById('termRoot'), { fs, hostname: 'coursework', welcome: WELCOME });
-    MG.app.igv = new MG.IGVPanel(document.getElementById('igvRoot'), { genome: GENOME, locus: 'chr14', allowLocal: true, quick: [] });
+    MG.app.igv = new MG.IGVPanel(document.getElementById('igvRoot'), { genome: GENOME, locus: 'chr14', allowLocal: true, quick: [], fs });
     MG.app.vx = new MG.VariantExplorer(document.getElementById('vxRoot'), {
       allowLoad: true,
       funnel: FUNNEL.stages,
@@ -158,7 +158,44 @@
     const useBtn = h('button.btn.small.primary', { type: 'button', html: MG.icon('table') + '<span>Use my filtered calls</span>' });
     useBtn.addEventListener('click', () => MG.actions.vxMine('auto'));
     vxRoot.querySelector('.vx-body').appendChild(h('p', { style: { textAlign: 'center' } }, useBtn));
+    MG.workspace.loaded.then((ws) => restoreWork(ws));
   };
+
+  /* the student's work from an earlier visit, saved in this browser (workspace.js), and saving it from now on */
+  async function restoreWork(ws) {
+    const term = MG.app.term;
+    try {
+      ws.restoreFiles(fs);
+      if (ws.hasWork()) {
+        // the BAM and index loaded last time
+        fs.list(BASE + '/data').forEach((c) => {
+          const e = c.entry;
+          if (e.kind !== 'blob' || e.hidden) return;
+          if (/\.bam$/i.test(c.name)) loaded.bam = e.blob;
+          else if (/\.(bai|csi)$/i.test(c.name)) loaded.bai = e.blob;
+        });
+        renderDataStatus();
+        const lines = ws.get('term');
+        const note = loaded.bam ? `Welcome back. Your files are as you left them, including ${loaded.bam.name}, and the ↑ key recalls the commands you ran.` : 'Welcome back. Your files are as you left them, and the ↑ key recalls the commands you ran.';
+        if (lines && lines.length) term.restoreOutput(lines, note);
+        else if (ws.restoredFiles) term.note(note);
+        await MG.app.vx.restore(ws.get('vx'));
+        MG.app.igv.restore(ws.get('igv'), fs);
+        term.refresh();
+      } else if (!ws.available) term.note(MG.workspaceNote + ' Use  download FILE  to keep copies of the files you need.');
+    } catch (e) {
+      console.warn('The saved work could not all be restored', e);
+    }
+    ws.saver('term', () => term.snapshotOutput());
+    ws.saver('vx', () => MG.app.vx.snapshot());
+    ws.saver('igv', () => MG.app.igv.snapshot());
+    ws.saver('viewer', () => MG.session.forWorkspace());
+    ws.saver('bench', () => MG.app.currentBench);
+    ws.watchFiles(fs);
+    ws.restoreBench();
+    ws.start();
+  }
+
   /* load the student's BAM into IGV once (again only if a different file is chosen) */
   let igvKey = null, igvPromise = Promise.resolve();
   function igvLoadBam() {
@@ -177,7 +214,10 @@
   }
   page.lazy = {
     igv: () => igvLoadBam(),
-    viewer: (pane) => MG.app.createViewer(pane.querySelector('#viewerRoot'))
+    viewer: (pane) => {
+      MG.app.createViewer(pane.querySelector('#viewerRoot'));
+      MG.session.restoreSaved();
+    }
   };
 
   /* the funnel is built from the filters each student chooses – no ready-made answer */
@@ -223,7 +263,7 @@
       `<p><b>Your data stay on your computer.</b> The BAM file is read by this web page in your browser; samtools and bcftools run here too (WebAssembly). Only when you press <b>Annotate with VEP</b> are the positions and alleles of your filtered variants – no reads, no names – sent to Ensembl, exactly as when you paste a VCF into the VEP web page.</p>
        <ul>
         <li><b>Data</b> – load the BAM and BAI files. <b>Terminal</b> – run the tools. <b>Variants</b> – annotate and filter. <b>IGV</b> – look at the reads. <b>3D viewer</b> – structures from the PDB.</li>
-        <li>Files you make live in this browser tab. Use <code>download FILE</code> in the terminal to keep a copy, and keep a note of every command you run (the <span class="kbd">↑</span> key and <code>history</code> help) – your Methods section needs them.</li>
+        <li>Your files, including the BAM and BAI you loaded, are saved in this browser as you work, with the variant table, IGV and the 3D viewer, so they are still here if you reload the page or come back later on this computer. <b>Start again</b> (under <b>My notes</b>) clears them. Use <code>download FILE</code> in the terminal to keep a copy of a file somewhere else, and keep a note of every command you run (the <span class="kbd">↑</span> key and <code>history</code> help) – your Methods section needs them.</li>
         <li>The notes boxes in the instructions are saved in this browser; <b>My notes</b> (top right) downloads them.</li>
        </ul>`
     );

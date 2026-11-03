@@ -485,7 +485,10 @@
       if (MG.wasm && MG.wasm.gunzipText) return await MG.wasm.gunzipText(ctx, f);
     }
     // large files made by the real tools are read in pieces
-    if (e.kind === 'aioli' && MG.wasm && MG.wasm.readTextSmart) return await MG.wasm.readTextSmart(e.apath, e.size);
+    if (e.kind === 'aioli' && MG.wasm && MG.wasm.readTextSmart) {
+      if (e.saved) await MG.wasm.restoreSaved(e);
+      return await MG.wasm.readTextSmart(e.apath, e.size);
+    }
     return await ctx.fs.readText(f);
   }
   function isBinaryName(f) {

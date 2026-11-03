@@ -8,6 +8,8 @@
      url      – a real file hosted with the site        { url, size }
      blob     – a real file on the student's computer   { blob }
      aioli    – a real file that lives in the WebAssembly file system { apath, size }
+                (saved – the same file as a Blob, when it was saved in the browser on an
+                earlier visit and has not yet been written back: see workspace.js)
    ===================================================================== */
 (function () {
   'use strict';
@@ -187,6 +189,7 @@
       }
       if (e.kind === 'blob') return await e.blob.text();
       if (e.kind === 'aioli') {
+        if (e.saved) return await e.saved.text();
         if (!MG.wasm || !MG.wasm.ready) throw new Error(`${p}: not available yet`);
         return await MG.wasm.readText(e.apath);
       }
@@ -198,6 +201,7 @@
       if (e.kind === 'text') return new TextEncoder().encode(e.text);
       if (e.kind === 'url') return new Uint8Array(await (await fetch(e.url)).arrayBuffer());
       if (e.kind === 'blob') return new Uint8Array(await e.blob.arrayBuffer());
+      if (e.kind === 'aioli' && e.saved) return new Uint8Array(await e.saved.arrayBuffer());
       if (e.kind === 'aioli' && MG.wasm) return await MG.wasm.readBytes(e.apath);
       throw new Error(`${p}: cannot read bytes`);
     }
@@ -208,7 +212,7 @@
       if (e.kind === 'text') return new Blob([e.text], { type: 'text/plain' });
       if (e.kind === 'blob') return e.blob;
       if (e.kind === 'url') return await (await fetch(e.url)).blob();
-      if (e.kind === 'aioli') return new Blob([await MG.wasm.readBytes(e.apath)]);
+      if (e.kind === 'aioli') return e.saved || new Blob([await MG.wasm.readBytes(e.apath)]);
       throw new Error(`${p}: this simulated file cannot be downloaded`);
     }
     /** paths for tab completion */

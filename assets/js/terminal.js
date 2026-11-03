@@ -50,6 +50,13 @@
       this.filesEl = h('aside.term-files', { hidden: true });
       const body = h('div.term-body', this.screen, this.filesEl);
       r.append(bar, body);
+      // stay at the latest line when the screen changes size (the tab is shown, the files panel opens),
+      // unless the student has scrolled up to read something
+      this._atBottom = true;
+      this.screen.addEventListener('scroll', () => {
+        this._atBottom = this.screen.scrollTop + this.screen.clientHeight >= this.screen.scrollHeight - 6;
+      });
+      if (window.ResizeObserver) new ResizeObserver(() => this._atBottom && this._scroll()).observe(this.screen);
       this.screen.addEventListener('mouseup', () => {
         const sel = window.getSelection();
         if (!sel || !String(sel)) this.input.focus({ preventScroll: true });
@@ -137,9 +144,11 @@
     }
     clear() {
       this.outEl.innerHTML = '';
+      bus.emit('term:clear', {});
     }
     _scroll() {
       this.screen.scrollTop = this.screen.scrollHeight;
+      this._atBottom = true;
     }
     get io() {
       return {
@@ -234,8 +243,59 @@
     _echo(line) {
       const el = h('div.tl.cmdline', { html: this.promptEl.innerHTML + esc(line) });
       el.dataset.cls = 'cmd';
+      // kept so that the screen can be saved and put back (snapshotOutput)
+      el.dataset.host = this.hostname;
+      el.dataset.cwd = this.cwdPretty;
+      el.dataset.line = line;
       this.outEl.appendChild(el);
       this._scroll();
+    }
+
+    /* ---------------- saved in the browser (workspace.js) ---------------- */
+    /** the last few hundred lines on the screen, as plain data */
+    snapshotOutput(maxLines = 600) {
+      const out = [];
+      let n = 0;
+      const els = Array.from(this.outEl.children);
+      for (let i = els.length - 1; i >= 0 && n < maxLines; i--) {
+        const el = els[i];
+        const c = el.dataset.cls;
+        if (c === 'cmd') {
+          out.push({ c: 'cmd', host: el.dataset.host || this.hostname, cwd: el.dataset.cwd || '~', line: el.dataset.line || '' });
+          n++;
+        } else if (c === 'out' || c === 'err' || c === 'note' || c === 'progress') {
+          const lines = el.textContent.split('\n');
+          const keep = lines.length > maxLines - n ? lines.slice(-(maxLines - n)) : lines;
+          out.push({ c: c === 'progress' ? 'out' : c, t: keep.join('\n') });
+          n += keep.length;
+        }
+      }
+      return out.reverse();
+    }
+    /** put saved lines back on the screen, then a note */
+    restoreOutput(items, note) {
+      if (!Array.isArray(items)) return;
+      this.outEl.innerHTML = '';
+      items.forEach((it) => {
+        let el = null;
+        if (it.c === 'cmd') {
+          const host = String(it.host || this.hostname), cwd = String(it.cwd || '~'), line = String(it.line || '');
+          el = h('div.tl.cmdline', h('span.pu', 'student@' + host), ':', h('span.pp', cwd), '$\u00a0', line);
+          Object.assign(el.dataset, { cls: 'cmd', host, cwd, line });
+        } else if (it.c === 'out' || it.c === 'err' || it.c === 'note') {
+          el = h('div.tl.' + it.c);
+          el.dataset.cls = it.c;
+          el.textContent = String(it.t || '');
+        }
+        if (el) this.outEl.appendChild(el);
+      });
+      if (note) this.note(note);
+      this._scroll();
+    }
+    /** show the prompt and the files again (after the file system has changed under the terminal) */
+    refresh() {
+      this._renderPrompt();
+      this.renderFiles();
     }
     _queue(lines) {
       this._q = (this._q || []).concat(lines);
