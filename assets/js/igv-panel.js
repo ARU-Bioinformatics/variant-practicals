@@ -8,6 +8,74 @@
   const MG = window.MG;
   const { h, esc, bus, toast } = MG;
 
+  /* ------------------------------------------------------------------
+     BAM files on the web server
+
+     IGV reads a BAM file in pieces: for each region it asks the server
+     for a range of bytes. GitHub Pages compresses .bam files on the fly
+     for any browser that says it accepts gzip, and then cuts the range
+     out of the compressed copy. Chrome, Edge, Safari and Firefox 148 or
+     later ask for ranges uncompressed, so they get the right bytes.
+     Older versions of Firefox, including Firefox ESR 140 (the long-term
+     version that many organisations install), say they accept gzip even
+     when they ask for a range. They are sent a piece of compressed data
+     that they cannot decompress, and IGV stops with "Error accessing
+     resource … status: 0".
+
+     So before IGV opens a BAM file from the server, one small request
+     asks for its last 28 bytes, which in every BAM file are the same
+     end-of-file block. If those bytes come back intact, IGV reads the
+     file in pieces as usual. If not, the whole file is downloaded once
+     (an ordinary download, which the browser decompresses itself) and
+     IGV reads it from memory.
+     ------------------------------------------------------------------ */
+  const BGZF_EOF = [31, 139, 8, 4, 0, 0, 0, 0, 0, 255, 6, 0, 66, 67, 2, 0, 27, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const hosted = new Map(); // absolute URL → Promise of what to give IGV: the URL, or the downloaded File
+
+  /** the URL itself when the server sends ranges of a BAM file intact, otherwise the whole file (a File) */
+  function hostedBam(url, onProgress) {
+    const abs = new URL(url, location.href).href;
+    if (!hosted.has(abs)) {
+      const name = decodeURIComponent(new URL(abs).pathname.split('/').pop() || 'reads.bam');
+      const p = (async () => {
+        let r = null;
+        try {
+          r = await fetch(abs, { headers: { Range: 'bytes=-28' } });
+        } catch (e) {
+          r = null; // (the browser could not decompress the piece it was sent)
+        }
+        if (r && r.status === 206) {
+          const end = new Uint8Array(await r.arrayBuffer().catch(() => new ArrayBuffer(0)));
+          if (end.length === BGZF_EOF.length && BGZF_EOF.every((x, i) => end[i] === x)) return abs;
+        } else if (r && r.ok) {
+          // (a server that ignores ranges sends the whole file: IGV can read that)
+          return new File([await r.blob()], name);
+        }
+        return downloadWhole(abs, name, onProgress);
+      })();
+      hosted.set(abs, p);
+      p.catch(() => hosted.delete(abs));
+    }
+    return hosted.get(abs);
+  }
+  async function downloadWhole(url, name, onProgress) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${name} could not be downloaded (the server answered ${r.status})`);
+    const size = Number(r.headers.get('Content-Length')) || 0;
+    if (!r.body || !r.body.getReader || !onProgress) return new File([await r.blob()], name);
+    const reader = r.body.getReader();
+    const parts = [];
+    let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parts.push(value);
+      got += value.length;
+      onProgress(got, size);
+    }
+    return new File(parts, name);
+  }
+
   class IGVPanel {
     constructor(root, opts) {
       this.root = root;
@@ -30,7 +98,8 @@
         });
         this.bar.appendChild(q);
       }
-      this.bar.appendChild(h('span.grow'));
+      this.statusEl = h('span.igv-status', { hidden: true, role: 'status' });
+      this.bar.append(this.statusEl, h('span.grow'));
       if (this.opts.allowLocal) {
         const inp = h('input', { type: 'file', multiple: true, hidden: true, accept: '.bam,.bai,.vcf,.gz,.tbi,.csi,.bed' });
         const lb = h('button.btn.small', { type: 'button', html: MG.icon('folder') + '<span>Load files from my computer…</span>' });
@@ -108,13 +177,47 @@
     }
     async addTrack(cfg) {
       const b = await this.ensure();
+      cfg = Object.assign({ removable: true }, cfg);
+      // a BAM file on the web server: make sure IGV can read it (see hostedBam above)
+      if (cfg.type === 'alignment' && typeof cfg.url === 'string' && !/^(blob|data):/i.test(cfg.url)) cfg.url = await this._hostedBam(cfg.url);
       // replace a track with the same name
       const old = b.trackViews && b.trackViews.find((tv) => tv.track && tv.track.name === cfg.name);
       if (old) b.removeTrack(old.track);
-      const t = await b.loadTrack(Object.assign({ removable: true }, cfg));
+      const t = await b.loadTrack(cfg);
       this.trackNames.add(cfg.name);
       bus.emit('igv:track', { name: cfg.name, type: cfg.type, format: cfg.format });
       return t;
+    }
+    async _hostedBam(url) {
+      const name = decodeURIComponent(new URL(url, location.href).pathname.split('/').pop());
+      const mb = (n) => (n / 1048576).toFixed(n < 10485760 ? 1 : 0) + ' MB';
+      let shown = '';
+      const progress = (got, size) => {
+        const done = size ? `(${Math.min(100, Math.round((got / size) * 100))}% of ${mb(size)})` : `(${mb(got)})`;
+        if (done === shown) return;
+        shown = done;
+        this._status(`Downloading ${name} for IGV`, done);
+      };
+      try {
+        return await hostedBam(url, progress);
+      } catch (e) {
+        toast(`IGV could not open <b>${esc(name)}</b>: ${esc(e.message || e)}. Check your internet connection and try again.`, 'error', 8000);
+        throw e;
+      } finally {
+        if (shown) this._status('');
+      }
+    }
+    /** a short message in the bar above the browser, and how far it has got (shown, but not read out by screen
+        readers, which would otherwise announce every step); '' hides it */
+    _status(text, progress) {
+      if (!this.statusText) {
+        this.statusText = h('span');
+        this.statusProgress = h('span', { 'aria-hidden': 'true' });
+        this.statusEl.append(h('span.spinner.small'), this.statusText, this.statusProgress);
+      }
+      this.statusEl.hidden = !text;
+      if (this.statusText.textContent !== text) this.statusText.textContent = text;
+      this.statusProgress.textContent = progress || '';
     }
     /** load files from the terminal's file system */
     async loadVfs(fs, paths) {

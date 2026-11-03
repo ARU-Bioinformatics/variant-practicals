@@ -68,6 +68,8 @@ The sorted BAM that `samtools sort` “produces” is the real BAM made from the
 
 GitHub Pages supports the HTTP range requests the page relies on (the BAM and reference files are read in pieces), and the empty file `.nojekyll` stops GitHub from processing the site.
 
+GitHub Pages also compresses `.bam` files on the fly for any browser that says it accepts compressed data, and answers a range request with a piece of the compressed copy, which IGV cannot read. Chrome, Edge, Safari and recent versions of Firefox ask for ranges uncompressed, but Firefox 147 and earlier (including Firefox ESR 140) do not. So the IGV tab first checks that the end of a BAM file arrives intact and, if it does not, downloads the whole file once instead (see `assets/js/igv-panel.js`).
+
 ## Try it on your own computer
 
 Opening the HTML files directly (`file://…`) does not work – browsers block the data files. Serve the folder instead. Python's built-in server works, but it cannot serve parts of files, so a small server with range support is included:

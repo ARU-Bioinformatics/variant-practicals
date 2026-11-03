@@ -102,6 +102,7 @@ table.mono td { font-family: var(--mono); font-size: 12px; }
 .igv-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); flex: none; flex-wrap: wrap; }
 .igv-bar .grow { flex: 1; }
 .igv-quick { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.84rem; }
+.igv-status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.84rem; color: var(--muted); }
 .igv-host { flex: 1; min-height: 0; overflow: auto; padding: 4px 6px; }
 .igv-help { flex: none; margin: 0; padding: 5px 12px; font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--line); }
 
