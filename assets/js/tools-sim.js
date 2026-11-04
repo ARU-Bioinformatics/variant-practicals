@@ -86,6 +86,22 @@
     };
   }
 
+  /* A simulated FASTQ or SAM file that a student copies or makes is saved in the browser as a
+     recipe (workspace.js), so that after a reload it is remade with everything it knew before,
+     such as the exact counts that grep gives. */
+  MG.simRecipe = (meta) => {
+    if (!meta || !D()) return null;
+    if (meta.kind === 'fastq' && meta.fastq) return { sim: 'fastq', k: meta.fastq };
+    if (meta.kind === 'sam' && meta.samKind) return { sim: 'sam', samKind: meta.samKind };
+    return null;
+  };
+  MG.simRebuild = (r) => {
+    if (!r || !D()) return null;
+    if (r.sim === 'fastq' && D().fastq[r.k]) return fastqMeta(r.k);
+    if (r.sim === 'sam' && D().bwa) return samMeta(r.samKind);
+    return null;
+  };
+
   const fastqOf = (fs, p) => {
     const e = fs.get(p);
     return e && e.kind === 'virtual' && e.meta && e.meta.fastq ? e.meta.fastq : null;

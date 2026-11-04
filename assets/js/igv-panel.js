@@ -83,6 +83,9 @@
       this.browser = null;
       this.pending = [];
       this.trackNames = new Set();
+      this.sources = new Map(); // track name -> where it came from, so that it can be opened again after a reload
+      this.saved = null;
+      this.fs = this.opts.fs || null;
       this._build();
     }
     _build() {
@@ -163,6 +166,10 @@
           bus.emit('igv:click', { track: track && track.name, data });
           return undefined; // keep the default popup
         });
+        b.on('trackremoved', (tracks) => {
+          (Array.isArray(tracks) ? tracks : [tracks]).forEach((t) => t && this.sources.delete(t.name));
+          bus.emit('igv:removed', {});
+        });
         const p = this.pending.slice();
         this.pending = [];
         return p.reduce((prom, fn) => prom.then(fn), Promise.resolve()).then(() => b);
@@ -219,9 +226,9 @@
       if (this.statusText.textContent !== text) this.statusText.textContent = text;
       this.statusProgress.textContent = progress || '';
     }
-    /** load files from the terminal's file system */
-    async loadVfs(fs, paths) {
-      MG.app.showWorkbench && MG.app.showWorkbench('igv');
+    /** load files from the terminal's file system (opts.quiet: without switching to the IGV tab) */
+    async loadVfs(fs, paths, opts = {}) {
+      if (!opts.quiet) MG.app.showWorkbench && MG.app.showWorkbench('igv');
       await this.ensure();
       for (const p of paths) {
         const e = fs.get(p);
@@ -239,6 +246,7 @@
           const url = await this._urlOf(fs, p, e);
           const indexURL = await this._urlOf(fs, fs.get(p + '.bai') ? p + '.bai' : p.replace(/\.bam$/, '.bai'), idx);
           await this.addTrack({ type: 'alignment', format: 'bam', name, url, indexURL, height: 360, colorBy: 'strand', showSoftClips: false, displayMode: 'EXPANDED' });
+          this.sources.set(name, { vfs: [fs.resolve(p)] });
         } else if (/\.vcf(\.gz)?$/.test(name)) {
           const url = await this._urlOf(fs, p, e);
           const cfg = { type: 'variant', format: 'vcf', name, url, displayMode: 'EXPANDED', height: 70, squishedHeight: 30, colorBy: 'none' };
@@ -248,8 +256,10 @@
             else cfg.indexed = false;
           }
           await this.addTrack(cfg);
+          this.sources.set(name, { vfs: [fs.resolve(p)] });
         } else if (/\.bed$/.test(name)) {
           await this.addTrack({ type: 'annotation', format: 'bed', name, url: await this._urlOf(fs, p, e) });
+          this.sources.set(name, { vfs: [fs.resolve(p)] });
         } else toast(`IGV cannot show ${esc(name)} – load BAM (+BAI) or VCF files.`, 'warn');
       }
     }
@@ -260,9 +270,9 @@
       const blob = await fs.toBlob(p);
       return new File([blob], MG.path.basename(fs.resolve(p)));
     }
-    /** files picked from the computer (coursework) */
-    async loadLocalFiles(files) {
-      MG.app.showWorkbench && MG.app.showWorkbench('igv');
+    /** files picked from the computer (coursework); opts.quiet: without switching to the IGV tab */
+    async loadLocalFiles(files, opts = {}) {
+      if (!opts.quiet) MG.app.showWorkbench && MG.app.showWorkbench('igv');
       await this.ensure();
       const bams = files.filter((f) => /\.bam$/i.test(f.name));
       const bais = files.filter((f) => /\.bai$/i.test(f.name));
@@ -275,6 +285,7 @@
           continue;
         }
         await this.addTrack({ type: 'alignment', format: 'bam', name: bam.name, url: bam, indexURL: bai, height: 360, displayMode: 'EXPANDED' });
+        this.sources.set(bam.name, { files: [bam, bai] });
       }
       for (const v of vcfs) {
         const idx = files.find((f) => f.name === v.name + '.tbi' || f.name === v.name + '.csi');
@@ -282,8 +293,62 @@
         if (idx) cfg.indexURL = idx;
         else cfg.indexed = false;
         await this.addTrack(cfg);
+        this.sources.set(v.name, { files: idx ? [v, idx] : [v] });
       }
       if (!bams.length && !vcfs.length) toast('Choose a .bam file with its .bai index, or a .vcf file.', 'warn');
+    }
+    /* ---------- saved in the browser (workspace.js) ---------- */
+    /** where the browser is and the tracks the student opened (the page's own tracks are added by the page) */
+    snapshot() {
+      if (!this.browser || this.restoring) return undefined;
+      let locus = '';
+      try {
+        const l = this.browser.currentLoci();
+        locus = (Array.isArray(l) ? l.join(' ') : String(l || '')).replace(/(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)/g, (m, a, b) => Math.round(+a) + '-' + Math.round(+b));
+      } catch (e) {
+        locus = '';
+      }
+      // a file the student picked that is also in the terminal's file system is saved there once
+      const ref = (f) => {
+        if (this.fs && f) for (const [p, e] of this.fs.entries) if (e.kind === 'blob' && e.blob && (e.blob === f || (e.blob.name === f.name && e.blob.size === f.size && e.blob.lastModified === f.lastModified))) return { vfs: p };
+        return f;
+      };
+      const tracks = Array.from(this.sources.entries()).map(([name, src]) => (src.vfs ? { name, vfs: src.vfs.slice() } : { name, files: src.files.map(ref) }));
+      return { v: 1, locus, tracks };
+    }
+    /** open the saved tracks and go back to the saved place, once the browser exists (it is made when the tab is first shown) */
+    restore(s, fs) {
+      if (!s || s.v !== 1) return;
+      if (fs) this.fs = fs;
+      this.saved = s;
+      if (this.browser) this._applySaved();
+      else this.pending.unshift(() => this._applySaved());
+    }
+    async _applySaved() {
+      const s = this.saved;
+      this.saved = null;
+      if (!s || !this.browser) return;
+      this.restoring = true;
+      try {
+        for (const t of s.tracks || []) {
+          try {
+            if (t.vfs && this.fs) {
+              const paths = t.vfs.filter((p) => this.fs.exists(p));
+              if (paths.length) await this.loadVfs(this.fs, paths, { quiet: true });
+            } else if (t.files) {
+              const files = t.files.map((f) => (f && f.vfs ? (this.fs && this.fs.get(f.vfs)) || {} : { blob: f }).blob).filter(Boolean);
+              if (files.length) await this.loadLocalFiles(files, { quiet: true });
+            }
+          } catch (e) {
+            console.warn('A saved IGV track could not be opened again', e);
+          }
+        }
+        if (s.locus) await this.browser.search(s.locus);
+      } catch (e) {
+        console.warn('The saved IGV view could not be restored', e);
+      } finally {
+        this.restoring = false;
+      }
     }
     async savePNG() {
       try {

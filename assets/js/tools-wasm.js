@@ -78,6 +78,15 @@
       const cli = await this.ensure();
       return await cli.fs.readFile(apath);
     },
+    /** a file saved in the browser on an earlier visit (workspace.js) is written back into the
+        WebAssembly file system the first time a program needs it */
+    async restoreSaved(e) {
+      if (!e || e.kind !== 'aioli' || !e.saved) return;
+      const cli = await this.ensure();
+      if (await lstat(cli, e.apath)) return;
+      await mkdirp(cli, MG.path.dirname(e.apath));
+      await cli.fs.writeFile(e.apath, new Uint8Array(await e.saved.arrayBuffer()));
+    },
 
     /** make sure a VFS file (and its index files) exist in the WebAssembly FS.
         Hosted files are mounted lazily (only the parts a tool reads are downloaded) and
@@ -100,6 +109,10 @@
         }
         return;
       }
+      if (e.kind === 'aioli') {
+        await this.restoreSaved(e); // (otherwise it is already there)
+        return;
+      }
       let key, src;
       if (e.kind === 'url') {
         key = 'url:' + e.url;
@@ -110,7 +123,7 @@
       } else if (e.kind === 'virtual' && e.meta && e.meta.backing) {
         key = 'url:' + e.meta.backing;
         src = { url: new URL(e.meta.backing, location.href).href };
-      } else return; // 'aioli' entries are already there
+      } else return;
       if (this.placed.get(ap) === key && (await lstat(cli, ap))) return;
       const name = 'm' + ++this.mountN + '_' + MG.path.basename(abs).replace(/[^A-Za-z0-9._-]/g, '_');
       const paths = await cli.mount([Object.assign({ name }, src)]);

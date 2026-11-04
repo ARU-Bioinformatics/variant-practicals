@@ -19,9 +19,10 @@ The practicals are not numbered by week, so they can be timetabled however you l
 7. [Settings: `config.js`](#settings-configjs)
 8. [Files](#files)
 9. [Data sources and how they were made](#data-sources-and-how-they-were-made)
-10. [Privacy and patient data](#privacy-and-patient-data)
-11. [Browser support](#browser-support)
-12. [Credits and licences](#credits-and-licences)
+10. [Saved work](#saved-work)
+11. [Privacy and patient data](#privacy-and-patient-data)
+12. [Browser support](#browser-support)
+13. [Credits and licences](#credits-and-licences)
 
 ---
 
@@ -109,6 +110,7 @@ The page logic lives in `assets/js/page-reads.js`, `page-meaning.js` and `page-c
 | `showModelAnswers` | `true`: students can reveal model answers in the two practicals after trying. `false`: the buttons are hidden (add `?answers` to a page address to see them, e.g. when demonstrating). The answers are still in the page source, so to withhold them completely remove the `q-model` blocks from your copy. The coursework page never contains answers. |
 | `vepServer` | The Ensembl VEP REST server for GRCh37 (`https://grch37.rest.ensembl.org`). |
 | `bundled.pdb` / `presets` | Structures stored with the site and friendly names for their chains and ligands. |
+| `storePrefix` | The name under which the browser keeps each student's progress and saved work (`genomics`). |
 
 ## Files
 
@@ -126,6 +128,7 @@ assets/js/
   workflow.js                         the Galaxy-style workflow engine
   variants.js                         VEP annotation table, filters and funnel
   viewer-*.js, commands.js, annot.js, alphafold.js, session.js   3D viewer (NGL)
+  workspace.js                        saves each student's work in the browser (IndexedDB) and puts it back
   page-*.js, config.js                page set-up and settings
 assets/vendor/            biowasm (Aioli + samtools/bcftools/htslib), igv.js, NGL – with licences
 data/reads/               NA12878 reads practical: sorted BAM + index, masked hg19, FastQC data, recorded outputs (sim.json)
@@ -145,11 +148,23 @@ build/                    the scripts used to make data/ (for reference; paths n
 - **VEP:** saved results come from the same Ensembl REST service the page uses. Ensembl updates its databases, so live results can differ slightly from the saved ones over time.
 - **Structures:** RCSB PDB 4GQS, 1R9O, 2NNI, 1KTZ. **Genes:** NCBI RefSeq via UCSC. **Cytobands:** UCSC.
 
+## Saved work
+
+Each student's work is saved in their browser as they go, and put back when they open the page again, even after closing the browser. That includes the files they make in the terminal, the workflow engine's history (and any workflow they have edited), the variant table with its annotation and filters, the tracks open in IGV and the place they were looking at, and the 3D viewer. On the coursework page it also includes the BAM and BAI files once a student has loaded them, so they only need to load them once on each computer. Progress and answers are saved as before.
+
+- The work stays in that browser on that computer. It doesn't follow a student to another computer, and it is lost if they clear their browsing data. Private windows keep nothing once they are closed, some managed computers wipe the browser at logout, and Safari deletes a site's saved data after seven days of use without a visit. Students can keep a copy of any file with `download FILE`.
+- If a page is open in two tabs, only the first one saves, and the second shows a notice at the top of the workbench.
+- **Start again** (in the **My answers** or **My notes** menu) deletes everything saved for that page.
+- If the browser runs out of space, the page says which file it couldn't keep and carries on.
+- The files a page makes for itself (the practical's data and the reference genome) are not saved, because they are made again each time. Simulated files are saved as a short description, so they take up almost no space.
+
+`assets/js/workspace.js` does the saving, using the browser's IndexedDB database, with one database for each site.
+
 ## Privacy and patient data
 
-- The coursework BAM file is **not** part of this site. Students load their own copy from Canvas; the page reads it locally (samtools, bcftools and IGV run inside the page) and it is never uploaded.
+- The coursework BAM file is **not** part of this site. Students load their own copy from Canvas; the page reads it locally (samtools, bcftools and IGV run inside the page) and it is never uploaded. The browser keeps a copy on the student's computer (see [Saved work](#saved-work)), so they only need to load it once.
 - When a student presses **Annotate with VEP**, the chromosome, position and alleles of their variant calls (no reads, no names) are sent to Ensembl's server – the same as pasting a VCF into the VEP web page, as students were shown in previous years.
-- Progress and answers are kept only in the student's browser (localStorage). No analytics, no cookies, no accounts.
+- Progress and answers (localStorage) and each student's saved work (IndexedDB) are kept only in their own browser. No analytics, no cookies, no accounts.
 
 ## Browser support
 

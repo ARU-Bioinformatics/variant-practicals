@@ -80,9 +80,10 @@
       onIGV: (r) => showInIGV(r.chrom + ':' + r.pos),
       on3D: (r) => showIn3D(r)
     }));
-    MG.fetchText(VCF_URL)
-      .then((t) => {
+    Promise.all([MG.fetchText(VCF_URL), MG.workspace.loaded])
+      .then(async ([t, ws]) => {
         vx.setVCF(t, 'calls.filtered.vcf');
+        await restoreWork(ws);
         bus.emit('page:ready', {});
       })
       .catch((e) => {
@@ -102,8 +103,29 @@
   };
   page.lazy = {
     igv: () => loadTracks(),
-    viewer: (pane) => MG.app.createViewer(pane.querySelector('#viewerRoot'))
+    viewer: (pane) => {
+      MG.app.createViewer(pane.querySelector('#viewerRoot'));
+      MG.session.restoreSaved();
+    }
   };
+
+  /* the student's work from an earlier visit, saved in this browser (workspace.js), and saving it from now on */
+  async function restoreWork(ws) {
+    try {
+      if (ws.hasWork()) {
+        await MG.app.vx.restore(ws.get('vx'), { funnel: (name) => FUNNELS[name] });
+        MG.app.igv.restore(ws.get('igv'));
+      } else if (!ws.available) toast(MG.workspaceNote, 'warn', 9000);
+    } catch (e) {
+      console.warn('The saved work could not all be restored', e);
+    }
+    ws.saver('vx', () => MG.app.vx.snapshot());
+    ws.saver('igv', () => MG.app.igv.snapshot());
+    ws.saver('viewer', () => MG.session.forWorkspace());
+    ws.saver('bench', () => MG.app.currentBench);
+    ws.restoreBench();
+    ws.start();
+  }
   function loadTracks() {
     if (tracksLoaded) return tracksLoaded;
     const P = MG.app.igv;
@@ -147,7 +169,7 @@
     else if (k === 'funnel') {
       const f = FUNNELS[v];
       if (!vx.annotated) await vx.annotateSaved(VEP_URL);
-      vx.setFunnel(f.stages, f.title, f.note);
+      vx.setFunnel(f.stages, f.title, f.note, v);
       bus.emit('vx:funnelset', { name: v });
     } else if (k === 'gene' || k === 'find') {
       if (!vx.annotated) await vx.annotateSaved(VEP_URL);
@@ -184,7 +206,7 @@
         <li>In the Variants table, click a row for details and links to the databases; click a column heading to sort; use the filters above the table.</li>
         <li><button class="do showme" type="button" disabled>show me</button> buttons do a step for you – try it yourself first.</li>
         <li>3D viewer: left-drag rotates, scroll zooms, right-drag moves; the command line at the bottom accepts commands such as <code>select A:227</code> or <code>show spheres haem</code> (type <code>help</code>).</li>
-        <li>Your answers are saved in this browser – use <b>My answers</b> to download them.</li>
+        <li>Your answers are saved in this browser – use <b>My answers</b> to download them. The variant table, what you had open in IGV and the 3D viewer are saved too, so they are as you left them when you come back on this computer.</li>
        </ul>`
     );
   };

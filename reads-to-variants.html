@@ -53,7 +53,7 @@
     <ul>
       <li><b>samtools</b> and <b>bcftools</b> are the real programs, compiled to run inside your browser (WebAssembly). <b>FastQC</b> and <b>BWA</b> are too big for a browser, so they replay real runs on exactly these data. Your files never leave your computer.</li>
       <li><button class="do showme" type="button" data-term="ls">show me</button> buttons type a command into the terminal for you – press <span class="kbd">Enter</span> to run it. Try typing it yourself first: typing is how you learn it.</li>
-      <li>Activity steps <b>tick themselves</b> when the page sees you do them; you can also tick them yourself. Answers are saved in this browser – <b>My answers</b> (top right) downloads them.</li>
+      <li>Activity steps <b>tick themselves</b> when the page sees you do them; you can also tick them yourself. Answers are saved in this browser – <b>My answers</b> (top right) downloads them – and so are the files you make, so you can close the page and carry on later on this computer.</li>
     </ul>
   </div>
 
@@ -778,6 +778,7 @@ bcftools view -i 'QUAL&gt;=30 &amp;&amp; INFO/DP&gt;=10' results/calls.vcf &gt; 
 <script src="assets/js/core.js"></script>
 <script src="assets/js/icons.js"></script>
 <script src="assets/js/vfs.js"></script>
+<script src="assets/js/workspace.js"></script>
 <script src="assets/js/shell.js"></script>
 <script src="assets/js/terminal.js"></script>
 <script src="assets/js/tools-wasm.js"></script>
